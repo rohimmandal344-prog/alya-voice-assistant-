@@ -1,0 +1,19 @@
+{
+  "appName": "Alya AI Assistant",
+  "packageName": "com.aistudio.alya.assistant.wzrk",
+  "versionName": "1.2.3",
+  "versionCode": 5,
+  "platform": "Android",
+  "minSdkVersion": 24,
+  "minAndroidVersion": "Android 7.0 (Nougat)",
+  "targetSdkVersion": 36,
+  "targetAndroidVersion": "Android 15 / 16",
+  "buildType": "debug",
+  "apkFileName": "alya-v1.2.3-android.apk",
+  "apkUrl": "https://ais-dev-kyg22mihuhomfblrzuuelq-887422690979.asia-southeast1.run.app/apk/alya-v1.2.3-android.apk",
+  "apkSize": 38350417,
+  "apkSizeFormatted": "36.57 MB",
+  "sha256": "eb7f22c43761d1335cba56591a9c1f5151a507bd90f856423db653cbb5865709",
+  "buildDate": "2026-09-08",
+  "releaseNotes": "• Real-time speech recognition & synthesis with animated voice visualizer\n• Room database persistent chat and conversation history\n• Live language switching with fast filter search\n• Version verification and clean package updates"
+}

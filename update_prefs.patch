@@ -1,0 +1,44 @@
+--- app/src/main/java/com/example/data/local/PreferencesManager.kt
++++ app/src/main/java/com/example/data/local/PreferencesManager.kt
+@@ -10,6 +10,7 @@
+ import kotlinx.coroutines.flow.asStateFlow
+ import org.json.JSONArray
+ import java.util.Locale
++import com.example.voice.wakeword.TriggerWordConfig
+ 
+ class PreferencesManager(context: Context) {
+     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+@@ -47,9 +48,10 @@
+     private val _ultraLowLatencyMode = MutableStateFlow(prefs.getBoolean(KEY_ULTRA_LOW_LATENCY_MODE, false))
+     val ultraLowLatencyMode: StateFlow<Boolean> = _ultraLowLatencyMode.asStateFlow()
+ 
+-    private val _selectedWakeWord = MutableStateFlow(prefs.getString(KEY_SELECTED_WAKE_WORD, "ALYA") ?: "ALYA")
++    private val triggerWordConfig = TriggerWordConfig(context)
++    private val _selectedWakeWord = MutableStateFlow(triggerWordConfig.triggerWord)
+     val selectedWakeWord: StateFlow<String> = _selectedWakeWord.asStateFlow()
+ 
+     private val _floatingBubbleEnabled = MutableStateFlow(prefs.getBoolean(KEY_FLOATING_BUBBLE, false))
+@@ -248,8 +250,11 @@
+     }
+ 
+     fun setSelectedWakeWord(keyword: String) {
+-        prefs.edit().putString(KEY_SELECTED_WAKE_WORD, keyword).apply()
+-        _selectedWakeWord.value = keyword
++        if (TriggerWordConfig.isValid(keyword)) {
++            triggerWordConfig.triggerWord = keyword.lowercase()
++            _selectedWakeWord.value = triggerWordConfig.triggerWord
++        } else {
++            throw IllegalArgumentException("Invalid trigger word. Must be 2-20 letters without spaces/special chars.")
++        }
+     }
+ 
+     fun setFloatingBubbleEnabled(enabled: Boolean) {
+@@ -325,7 +330,7 @@
+         _neverWakeDuringPlayback.value = prefs.getBoolean(KEY_NEVER_WAKE_PLAYBACK, true)
+         _isContinuousConversationEnabled.value = prefs.getBoolean(KEY_CONTINUOUS_CONVERSATION, true)
+         _ultraLowLatencyMode.value = prefs.getBoolean(KEY_ULTRA_LOW_LATENCY_MODE, false)
+-        _selectedWakeWord.value = prefs.getString(KEY_SELECTED_WAKE_WORD, "ALYA") ?: "ALYA"
++        _selectedWakeWord.value = triggerWordConfig.triggerWord
+         _floatingBubbleEnabled.value = prefs.getBoolean(KEY_FLOATING_BUBBLE, false)
+         _vibrationFeedbackEnabled.value = prefs.getBoolean(KEY_VIBRATION_FEEDBACK, true)
+         _callTranscriptEnabled.value = prefs.getBoolean(KEY_CALL_TRANSCRIPT_ENABLED, true)

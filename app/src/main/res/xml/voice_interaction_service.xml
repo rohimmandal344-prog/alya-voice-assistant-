@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.example.service.AlyaVoiceInteractionSessionService"
+    android:recognitionService="com.example.voice.AlyaRecognitionService"
+    android:settingsActivity="com.example.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLocalInteraction="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />

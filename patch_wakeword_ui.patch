@@ -1,0 +1,55 @@
+--- app/src/main/java/com/example/ui/screens/WakeWordSettingsSheet.kt
++++ app/src/main/java/com/example/ui/screens/WakeWordSettingsSheet.kt
+@@ -100,6 +100,7 @@
+     var testResultText by remember { mutableStateOf<String?>(null) }
+     var isTestingWakeWord by remember { mutableStateOf(false) }
++    var validationError by remember { mutableStateOf<String?>(null) }
+ 
+     LaunchedEffect(selectedWakeWord) {
+         customWakeWordInput = selectedWakeWord
+     }
+@@ -216,23 +217,35 @@
+                     OutlinedTextField(
+                         value = customWakeWordInput,
+                         onValueChange = {
+                             customWakeWordInput = it
+-                            if (it.isNotBlank()) {
+-                                viewModel.setSelectedWakeWord(it)
++                            if (com.example.voice.wakeword.TriggerWordConfig.isValid(it)) {
++                                validationError = null
++                                try {
++                                    viewModel.setSelectedWakeWord(it)
++                                } catch (e: Exception) {}
++                            } else {
++                                validationError = "Must be 2-20 letters (no spaces/special chars)"
+                             }
+                         },
+-                        label = { Text("Custom Wake Name (e.g. Jarvis, Nova, Alya)") },
++                        label = { Text("Custom Wake Name (e.g. jarvis, nova)") },
++                        isError = validationError != null,
++                        supportingText = {
++                            if (validationError != null) Text(validationError!!)
++                            else Text("Changes apply immediately without restart")
++                        },
+                         modifier = Modifier
+                             .fillMaxWidth()
+                             .testTag("custom_wake_word_input"),
+                         singleLine = true,
+                         trailingIcon = {
+-                            if (customWakeWordInput.isNotBlank()) {
+-                                IconButton(onClick = {
+-                                    viewModel.setSelectedWakeWord(customWakeWordInput)
+-                                }) {
+-                                    Icon(imageVector = Icons.Default.Check, contentDescription = "Apply Dynamic Name")
+-                                }
++                            IconButton(onClick = {
++                                customWakeWordInput = "alya"
++                                validationError = null
++                                try {
++                                    viewModel.setSelectedWakeWord("alya")
++                                } catch (e: Exception) {}
++                            }) {
++                                Icon(imageVector = Icons.Default.Restore, contentDescription = "Reset to default")
+                             }
+                         }
+                     )

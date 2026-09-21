@@ -1,0 +1,87 @@
+{
+  "version": "6.0.0-stable",
+  "generated_at": "2026-09-19",
+  "languages": {
+    "en-US": {
+      "name": "English (United States)",
+      "lexicon_size": 25000,
+      "commands": [
+        "turn on wifi", "turn off wifi", "turn on bluetooth", "turn off bluetooth",
+        "open youtube", "open camera", "turn on flashlight", "turn off flashlight",
+        "volume up", "volume down", "brightness up", "brightness down", "set timer",
+        "take a screenshot", "call contact", "send message", "what is the weather",
+        "tell me a joke", "open settings", "set alarm for tomorrow morning",
+        "navigate home", "play music", "pause music", "battery percentage", "device info"
+      ],
+      "phoneme_map": {
+        "alya": "AA1 L Y AH0",
+        "alia": "AA1 L IY0 AH0",
+        "seno": "S EH1 N OW0"
+      }
+    },
+    "en-IN": {
+      "name": "English (India)",
+      "lexicon_size": 28000,
+      "commands": [
+        "turn on wifi", "turn off wifi", "open whatsapp", "call mummy", "call papa",
+        "recharge mobile", "check balance", "open paytm", "open phonepe", "open gpay",
+        "torch on karo", "torch off karo", "volume badhao", "volume kam karo",
+        "brightness badhao", "brightness kam karo", "kya haal hai", "kaisa chal raha hai",
+        "weather kaisa hai", "alarm lagao subah 7 baje", "gaana bajao", "call cut karo"
+      ],
+      "phoneme_map": {
+        "alya": "AA1 L Y AA0",
+        "alia": "AA1 L IY0 AA0",
+        "seno": "S EH1 N OW0",
+        "recharge": "R IY0 CH AA1 R JH",
+        "paytm": "P EY1 T IY0 EH1 M"
+      }
+    },
+    "hi-IN": {
+      "name": "Hindi (India)",
+      "lexicon_size": 32000,
+      "commands": [
+        "वाईफाई चालू करो", "वाईफाई बंद करो", "ब्लूटूथ ऑन करो", "टॉर्च चालू करो",
+        "यूट्यूब खोलो", "कैमरा खोलो", "मम्मी को फोन लगाओ", "आवाज बढ़ाओ", "आवाज कम करो",
+        "ब्राइटनेस बढ़ाओ", "ब्राइटनेस कम करो", "आज का मौसम कैसा है", "गाना बजाओ",
+        "अलार्म लगाओ", "व्हाट्सएप खोलो", "फोन काटो", "कॉल उठाओ", "सब ठीक है"
+      ],
+      "phoneme_map": {
+        "आलिया": "AA L IY AA",
+        "आल्या": "AA L Y AA",
+        "सेनो": "S E N O",
+        "नमस्ते": "N AH M AH S T E"
+      }
+    },
+    "bn-IN": {
+      "name": "Bengali (India)",
+      "lexicon_size": 30000,
+      "commands": [
+        "ওয়াইফাই চালু করো", "ওয়াইফাই বন্ধ করো", "টর্চ জ্বালাও", "টর্চ বন্ধ করো",
+        "ইউটিউব খোলো", "ক্যামেরা খোলো", "মাকে ফোন করো", "আওয়াজ বাড়াও", "আওয়াজ কমাও",
+        "ব্রাইটনেস বাড়াও", "আজকের আবহাওয়া কেমন", "গান বাজাও", "অ্যালার্ম দাও",
+        "হোয়াটসঅ্যাপ খোলো", "ফোন তোলো", "ফোন কাটো", "কেমন আছো"
+      ],
+      "phoneme_map": {
+        "আলিয়া": "AA L IY AA",
+        "আল্যা": "AA L Y AA",
+        "সেনো": "SH E N O"
+      }
+    },
+    "rjb-IN": {
+      "name": "Rajbonshi (North Bengal / Assam / Cooch Behar)",
+      "lexicon_size": 18000,
+      "commands": [
+        "ওয়াইফাই অন কর", "ওয়াইফাই বন্ধ কর", "টর্চ জ্বালাও", "ইউটিউব খোল",
+        "মাক ফোন কর", "বাপক ফোন কর", "আওয়াজ বাড়াও", "আওয়াজ কমাও", "গান বাজাও",
+        "কি খবর", "কেমন আছিস", "কাইলকার আবহাওয়া কেমন", "ক্যামেরা খোল"
+      ],
+      "phoneme_map": {
+        "আলিয়া": "AA L IY AA",
+        "সেনো": "S E N O",
+        "কিলা": "K IY L AA",
+        "আছেন": "AA CH E N"
+      }
+    }
+  }
+}

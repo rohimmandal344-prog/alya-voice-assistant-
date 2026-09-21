@@ -1,0 +1,9 @@
+{
+  "versionCode": 5,
+  "versionName": "1.2.3",
+  "apkUrl": "https://github.com/example/alya-assistant/releases/download/v1.2.3/alya-v1.2.3.apk",
+  "releaseNotes": "• Version 1.2.3 Release Highlights:\n• Added VersionCheckManager service for automatic startup version verification\n• Added MY_PACKAGE_REPLACED broadcast receiver for clean package updates\n• Integrated Settings -> Languages live search bar with clear button & empty state\n• Automatic cache purging and integrity checks before APK installation",
+  "fileSize": 20250000,
+  "minSdkVersion": 24,
+  "targetSdkVersion": 36
+}

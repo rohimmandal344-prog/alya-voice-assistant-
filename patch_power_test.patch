@@ -1,0 +1,67 @@
+--- app/src/test/java/com/example/PowerStateManagerTest.kt
++++ app/src/test/java/com/example/PowerStateManagerTest.kt
+@@ -6,7 +6,7 @@
+ import android.os.PowerManager
+ import com.example.power.PowerStateManager
+ import com.example.voice.AudioDeviceManager
+-import com.example.voice.wakeword.TfLiteWakeWordManager
++import com.example.voice.wakeword.WakeWordManager
+ import com.example.voice.SpeechRecognitionManager
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import org.junit.Assert.assertEquals
+@@ -25,15 +25,32 @@
+     private lateinit var context: Context
+     private lateinit var audioDeviceManager: AudioDeviceManager
+     private lateinit var speechManager: SpeechRecognitionManager
+-    private lateinit var wakeWordManager: TfLiteWakeWordManager
++    private lateinit var wakeWordManager: WakeWordManager
+ 
+     @Before
+     fun setup() {
+         context = mock(Context::class.java)
+         audioDeviceManager = mock(AudioDeviceManager::class.java)
+         speechManager = mock(SpeechRecognitionManager::class.java)
+-        wakeWordManager = TfLiteWakeWordManager(context)
++        wakeWordManager = object : WakeWordManager {
++            override val isListening = MutableStateFlow(false)
++            override var isSuppressed = false
++            override var isTtsSpeaking = false
++            override var onBargeInDetected: (() -> Unit)? = null
++            var isDeviceIdlePowerMode = false
++            override fun start(keyword: String, sensitivity: Float) = true
++            override fun stop() {}
++            override fun disposeNativeResources() {}
++            override fun addWakeWordListener(listener: (String) -> Unit) {}
++            override fun removeWakeWordListener(listener: (String) -> Unit) {}
++            override fun updateConfiguredKeyword(newKeyword: String) {}
++            override fun clearAudioBuffer() {}
++            override fun release() {}
++            override fun setBatterySaverEnabled(enabled: Boolean) {}
++            override fun setDeviceIdlePowerMode(enabled: Boolean) { isDeviceIdlePowerMode = enabled }
++            override fun notifyUserActivity() {}
++            override fun setBargeInEnabled(enabled: Boolean) {}
++            override fun getRecentAudio(durationMs: Int): ShortArray = ShortArray(0)
++            override fun onAppBackgrounded(allowBackground: Boolean) {}
++            override fun onAppForegrounded(isEnabled: Boolean, kw: String, sens: Float) {}
++        }
+ 
+         powerStateManager = PowerStateManager(context, audioDeviceManager, speechManager, wakeWordManager)
+     }
+@@ -57,17 +74,17 @@
+         // Initially off
+-        assertEquals(false, wakeWordManager.isDeviceIdlePowerMode)
++        assertEquals(false, (wakeWordManager as any).isDeviceIdlePowerMode) // Mocked check instead of real
+ 
+         // Force deep idle
+         powerStateManager.forceDeepIdleStateForTesting()
+ 
+         // Wake word manager should be informed of deep idle state
+-        assertEquals(true, wakeWordManager.isDeviceIdlePowerMode)
++        assertEquals(true, (wakeWordManager as any).isDeviceIdlePowerMode)
+ 
+         // Notify activity should wake it up
+         powerStateManager.notifyUserActivity()
+-        assertEquals(false, wakeWordManager.isDeviceIdlePowerMode)
++        assertEquals(false, (wakeWordManager as any).isDeviceIdlePowerMode)
+     }
+ }

@@ -1,0 +1,61 @@
+{
+  "version": "6.0.0-stable",
+  "intent_rules": [
+    {
+      "intent": "TOGGLE_WIFI",
+      "slots": ["state"],
+      "patterns": [
+        "wifi {state}", "turn {state} wifi", "switch {state} wifi",
+        "वाईफाई {state} करो", "ওয়াইফাই {state} করো", "wifi {state} kor"
+      ]
+    },
+    {
+      "intent": "TOGGLE_BLUETOOTH",
+      "slots": ["state"],
+      "patterns": [
+        "bluetooth {state}", "turn {state} bluetooth",
+        "ब्लूटूथ {state} करो", "ব্লুটুথ {state} করো"
+      ]
+    },
+    {
+      "intent": "TOGGLE_FLASHLIGHT",
+      "slots": ["state"],
+      "patterns": [
+        "torch {state}", "flashlight {state}", "turn {state} flashlight", "turn {state} torch",
+        "टॉर्च {state} करो", "টর্চ {state} করো", "টর্চ জ্বালাও", "torch on karo", "torch off karo"
+      ]
+    },
+    {
+      "intent": "ADJUST_VOLUME",
+      "slots": ["direction", "amount"],
+      "patterns": [
+        "volume {direction}", "set volume to {amount}", "turn volume {direction}",
+        "आवाज {direction} करो", "আওয়াজ {direction} করো", "volume badhao", "volume kam karo"
+      ]
+    },
+    {
+      "intent": "ADJUST_BRIGHTNESS",
+      "slots": ["direction", "amount"],
+      "patterns": [
+        "brightness {direction}", "set brightness to {amount}", "screen brightness {direction}",
+        "ब्राइटनेस {direction} करो", "ব্রাইটনেস {direction} করো", "brightness badhao", "brightness kam karo"
+      ]
+    },
+    {
+      "intent": "OPEN_APP",
+      "slots": ["app_name"],
+      "patterns": [
+        "open {app_name}", "launch {app_name}", "start {app_name}",
+        "{app_name} खोलो", "{app_name} খোল", "{app_name} kholo"
+      ]
+    },
+    {
+      "intent": "CALL_CONTACT",
+      "slots": ["contact_name"],
+      "patterns": [
+        "call {contact_name}", "phone {contact_name}", "dial {contact_name}",
+        "{contact_name} को फोन लगाओ", "{contact_name} কে ফোন করো", "{contact_name} ke call karo"
+      ]
+    }
+  ]
+}

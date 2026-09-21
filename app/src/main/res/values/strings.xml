@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Alya Assistant</string>
+    <string name="accessibility_service_description">Allow Alya to perform gestures, click buttons, and interact with apps on your behalf for hands-free control.</string>
+</resources>
