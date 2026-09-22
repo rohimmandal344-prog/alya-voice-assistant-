@@ -34,6 +34,12 @@ class ConnectivityObserver(context: Context) {
                     launch { send(Status.Available) }
                 }
 
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    super.onCapabilitiesChanged(network, networkCapabilities)
+                    val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    launch { send(if (hasInternet) Status.Available else Status.Unavailable) }
+                }
+
                 override fun onLosing(network: Network, maxMsToLive: Int) {
                     super.onLosing(network, maxMsToLive)
                     launch { send(Status.Losing) }
@@ -41,33 +47,53 @@ class ConnectivityObserver(context: Context) {
 
                 override fun onLost(network: Network) {
                     super.onLost(network)
-                    launch { send(Status.Lost) }
+                    // Check if default active network is truly offline or switched to cellular/wifi
+                    if (!isOnline()) {
+                        launch { send(Status.Lost) }
+                    } else {
+                        launch { send(Status.Available) }
+                    }
                 }
 
                 override fun onUnavailable() {
                     super.onUnavailable()
-                    launch { send(Status.Unavailable) }
+                    if (!isOnline()) {
+                        launch { send(Status.Unavailable) }
+                    } else {
+                        launch { send(Status.Available) }
+                    }
                 }
             }
 
-            val request = NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-
-            connectivityManager.registerNetworkCallback(request, callback)
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    connectivityManager.registerDefaultNetworkCallback(callback)
+                } else {
+                    val request = NetworkRequest.Builder()
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        .build()
+                    connectivityManager.registerNetworkCallback(request, callback)
+                }
+            } catch (e: Exception) {
+                // Fallback for restricted environments
+                val request = NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                connectivityManager.registerNetworkCallback(request, callback)
+            }
 
             // Initial check
-            val activeNetwork = connectivityManager.activeNetwork
-            val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-            val isOnline = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-            if (isOnline) {
+            val isCurrentlyOnline = isOnline()
+            if (isCurrentlyOnline) {
                 launch { send(Status.Available) }
             } else {
                 launch { send(Status.Unavailable) }
             }
 
             awaitClose {
-                connectivityManager.unregisterNetworkCallback(callback)
+                try {
+                    connectivityManager.unregisterNetworkCallback(callback)
+                } catch (_: Exception) {}
             }
         }.distinctUntilChanged()
     }

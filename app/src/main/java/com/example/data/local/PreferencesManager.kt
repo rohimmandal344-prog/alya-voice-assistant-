@@ -116,7 +116,9 @@ class PreferencesManager(context: Context) {
     }
 
     private val _updateCheckUrl = MutableStateFlow(
-        prefs.getString(KEY_UPDATE_CHECK_URL, DEFAULT_UPDATE_URL) ?: DEFAULT_UPDATE_URL
+        prefs.getString(KEY_UPDATE_CHECK_URL, DEFAULT_UPDATE_URL)?.let {
+            if (it.contains("daily-walking-guide-apk") || it.isBlank()) DEFAULT_UPDATE_URL else it
+        } ?: DEFAULT_UPDATE_URL
     )
     val updateCheckUrl: StateFlow<String> = _updateCheckUrl.asStateFlow()
 
@@ -354,7 +356,9 @@ class PreferencesManager(context: Context) {
         _voicePersona.value = prefs.getString(KEY_VOICE_PERSONA, "KORE").let { if (it == "ALYA_ANIME_RUSSIAN" || it.isNullOrBlank()) "KORE" else it }
         _responseStyle.value = prefs.getString(KEY_RESPONSE_STYLE, "Balanced") ?: "Balanced"
         _silenceTimeoutSeconds.value = prefs.getInt(KEY_SILENCE_TIMEOUT, 5)
-        _updateCheckUrl.value = prefs.getString(KEY_UPDATE_CHECK_URL, DEFAULT_UPDATE_URL) ?: DEFAULT_UPDATE_URL
+        _updateCheckUrl.value = prefs.getString(KEY_UPDATE_CHECK_URL, DEFAULT_UPDATE_URL)?.let {
+            if (it.contains("daily-walking-guide-apk") || it.isBlank()) DEFAULT_UPDATE_URL else it
+        } ?: DEFAULT_UPDATE_URL
         _isContinuousConversationEnabled.value = prefs.getBoolean(KEY_CONTINUOUS_CONVO, true)
         _onlyOwnerVoiceWakes.value = prefs.getBoolean(KEY_ONLY_OWNER_VOICE_WAKES, true)
         _pauseDuringCallsAndRecording.value = prefs.getBoolean(KEY_PAUSE_DURING_CALLS, true)
@@ -404,7 +408,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_PAUSE_DURING_CALLS = "key_pause_during_calls"
         private const val KEY_NEVER_WAKE_DURING_PLAYBACK = "key_never_wake_during_playback"
         private const val KEY_SPEAKER_EMBEDDING = "key_speaker_embedding"
-        const val DEFAULT_UPDATE_URL = "https://api.github.com/repos/appsteck/daily-walking-guide-apk/releases/latest"
+        const val DEFAULT_UPDATE_URL = "https://api.github.com/repos/alya-assistant/alya/releases/latest"
 
         val AVAILABLE_VOICE_PERSONAS = listOf(
             VoicePersonaOption("KORE", "Kore • Natural & Warm", "Balanced, human-like warm expressive tone"),

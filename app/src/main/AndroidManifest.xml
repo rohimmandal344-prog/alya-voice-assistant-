@@ -60,6 +60,10 @@
 
     <queries>
         <package android:name="com.google.android.tts" />
+        <package android:name="com.google.android.googlequicksearchbox" />
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>

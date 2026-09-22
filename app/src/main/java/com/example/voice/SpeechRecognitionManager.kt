@@ -93,6 +93,7 @@ class SpeechRecognitionManager(private val context: Context) {
     private var isNetworkAvailable = true
     private var busyRetryCount = 0
     private val maxBusyRetries = 3
+    private val offlineUnavailableLanguages = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     init {
         checkNetworkState()
@@ -134,10 +135,7 @@ class SpeechRecognitionManager(private val context: Context) {
 
     private fun registerNetworkCallback() {
         try {
-            val request = NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-            connectivityManager?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+            val callback = object : ConnectivityManager.NetworkCallback() {
                 private var networkLossJob: kotlinx.coroutines.Job? = null
 
                 override fun onAvailable(network: Network) {
@@ -152,12 +150,15 @@ class SpeechRecognitionManager(private val context: Context) {
                 }
 
                 override fun onLost(network: Network) {
-                    Log.w(TAG, "Network lost, waiting to confirm offline state...")
+                    Log.w(TAG, "Network lost event received, verifying default network status...")
                     networkLossJob?.cancel()
                     networkLossJob = scope.launch {
                         kotlinx.coroutines.delay(2000)
-                        isNetworkAvailable = false
-                        com.example.voice.error.VoiceErrorRegistry.instance.updateNetworkStatus(false)
+                        val active = connectivityManager?.activeNetwork
+                        val caps = connectivityManager?.getNetworkCapabilities(active)
+                        val stillOnline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                        isNetworkAvailable = stillOnline
+                        com.example.voice.error.VoiceErrorRegistry.instance.updateNetworkStatus(stillOnline)
                     }
                 }
 
@@ -166,7 +167,16 @@ class SpeechRecognitionManager(private val context: Context) {
                     isNetworkAvailable = hasInternet
                     com.example.voice.error.VoiceErrorRegistry.instance.updateNetworkStatus(hasInternet)
                 }
-            })
+            }
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                connectivityManager?.registerDefaultNetworkCallback(callback)
+            } else {
+                val request = NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                connectivityManager?.registerNetworkCallback(request, callback)
+            }
         } catch (e: Exception) { Log.e(TAG, "Failed to register network callback", e) }
     }
 
@@ -290,6 +300,7 @@ class SpeechRecognitionManager(private val context: Context) {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _isListening.value = true
                         _speechError.value = null
+                        com.example.voice.error.VoiceErrorRegistry.instance.clearActiveError()
                         languageFallbackAttempts = 0
                         armWatchdog(8000L) // Longer watchdog for initial readiness
                     }
@@ -297,6 +308,7 @@ class SpeechRecognitionManager(private val context: Context) {
                     override fun onBeginningOfSpeech() {
                         _isListening.value = true
                         _speechError.value = null
+                        com.example.voice.error.VoiceErrorRegistry.instance.clearActiveError()
                         onUserBeganSpeaking?.invoke()
                         scope.launch { _userBeganSpeakingFlow.emit(Unit) }
                         armWatchdog(15000L) // User is talking, give them time
@@ -326,9 +338,26 @@ class SpeechRecognitionManager(private val context: Context) {
 
                         Log.d(TAG, "SpeechRecognizer onError: $error")
 
-                        // If offline and error is network-related, gracefully handle without publishing noisy speech TTS alerts
                         val isOnline = com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
-                        if (!isOnline && (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT || error == 11)) {
+
+                        // If error 13 (ERROR_LANGUAGE_UNAVAILABLE) or 11 occurs with offline preference,
+                        // the device does not have offline language pack installed: automatically fallback to standard recognition!
+                        if (error == 13 || (error == 11 && !isOnline)) {
+                            Log.w(TAG, "Offline language model not available on device for '$currentLanguage' (code $error). Falling back to online/standard recognition seamlessly.")
+                            offlineUnavailableLanguages.add(currentLanguage ?: "default")
+                            cleanupRecognizer()
+                            if (isContinuousMode) {
+                                mainHandler.postDelayed({
+                                    if (isContinuousMode && !_isListening.value) {
+                                        this@SpeechRecognitionManager.startListening(currentLanguage)
+                                    }
+                                }, 300L)
+                            }
+                            return
+                        }
+
+                        // If offline and error is network-related, gracefully handle without publishing noisy speech TTS alerts
+                        if (!isOnline && (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)) {
                             Log.w(TAG, "Speech recognition network error while offline (error $error). Staying in local offline mode.")
                             cleanupRecognizer()
                             if (isContinuousMode) {
@@ -518,9 +547,12 @@ class SpeechRecognitionManager(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L) // More time for user to finish
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
             
-            // Enable offline / hybrid recognition preference if supported
+            // Enable offline recognition preference ONLY if device is truly offline AND language pack didn't fail
             val isOnline = com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, !isOnline)
+            val isOfflineAvailable = !offlineUnavailableLanguages.contains(currentLanguage ?: "default")
+            if (!isOnline && isOfflineAvailable) {
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            }
         }
     }
 

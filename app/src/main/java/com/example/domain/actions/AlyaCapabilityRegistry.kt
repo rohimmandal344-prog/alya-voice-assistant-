@@ -109,7 +109,13 @@ class AlyaCapabilityRegistry private constructor(private val context: Context) {
         }
 
         if (cap.onlineRequired) {
-            return CapabilityAvailability.ONLINE_REQUIRED
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val activeNet = cm?.activeNetwork
+            val caps = cm?.getNetworkCapabilities(activeNet)
+            val isOnline = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+            if (!isOnline) {
+                return CapabilityAvailability.ONLINE_REQUIRED
+            }
         }
 
         return CapabilityAvailability.SUPPORTED_AND_WORKING

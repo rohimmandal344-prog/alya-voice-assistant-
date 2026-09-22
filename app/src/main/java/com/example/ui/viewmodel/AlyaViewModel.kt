@@ -1727,10 +1727,10 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                 val personaToUse = if (prefPersona.isBlank() || prefPersona == "ALYA_ANIME_RUSSIAN") "KORE" else prefPersona
                 val geminiVoice = when (personaToUse.uppercase()) {
                     "KORE" -> "Kore"
-                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION" -> "Aoede"
+                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION" -> "Kore"
                     "CRISP_CONFIDENT", "EXECUTIVE", "ALYA_EXECUTIVE_CRISP" -> "Aoede"
-                    "LIVELY_PLAYFUL", "ENERGETIC" -> "Vega"
-                    "SWEET_COMPANION", "ANIME_SWEET" -> "Leda"
+                    "LIVELY_PLAYFUL", "ENERGETIC" -> "Aoede"
+                    "SWEET_COMPANION", "ANIME_SWEET" -> "Kore"
                     else -> "Aoede"
                 }
 
@@ -1791,10 +1791,10 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                 val personaToUse = if (prefPersona.isBlank() || prefPersona == "ALYA_ANIME_RUSSIAN") "KORE" else prefPersona
                 val geminiVoice = when (personaToUse.uppercase()) {
                     "KORE" -> "Kore"
-                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION" -> "Aoede"
+                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION" -> "Kore"
                     "CRISP_CONFIDENT", "EXECUTIVE", "ALYA_EXECUTIVE_CRISP" -> "Aoede"
-                    "LIVELY_PLAYFUL", "ENERGETIC" -> "Vega"
-                    "SWEET_COMPANION", "ANIME_SWEET" -> "Leda"
+                    "LIVELY_PLAYFUL", "ENERGETIC" -> "Aoede"
+                    "SWEET_COMPANION", "ANIME_SWEET" -> "Kore"
                     else -> "Aoede"
                 }
 

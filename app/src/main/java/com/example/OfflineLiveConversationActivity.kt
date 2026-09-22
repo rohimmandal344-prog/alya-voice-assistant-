@@ -216,6 +216,8 @@ class OfflineLiveConversationActivity : ComponentActivity() {
                             Log.i(TAG, "Successfully configured premium female voice: ${bestVoice.name}")
                         }
                     }
+                    textToSpeech?.setPitch(1.06f)
+                    textToSpeech?.setSpeechRate(1.0f)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error configuring female voice fallback: ${e.message}")
                 }

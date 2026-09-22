@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +62,7 @@ fun AppUpdateCard(
     modifier: Modifier = Modifier,
     onCheckForUpdates: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val updateStatus by updateManager.updateStatus.collectAsState()
 
@@ -78,7 +82,7 @@ fun AppUpdateCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header: Current Version
+            // Header: Current Version & App Identity
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -86,13 +90,13 @@ fun AppUpdateCard(
             ) {
                 Column {
                     Text(
-                        text = "In-App Updates",
+                        text = "Alya Assistant",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Current: v$currentVersionName (Build $currentVersionCode)",
+                        text = "Current: v$currentVersionName • Build $currentVersionCode",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -103,11 +107,11 @@ fun AppUpdateCard(
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                 ) {
                     Text(
-                        text = "Auto-Install Ready",
+                        text = "Latest v$currentVersionName",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -143,8 +147,8 @@ fun AppUpdateCard(
                             urlInput = it
                             onUrlChanged(it)
                         },
-                        label = { Text("Version JSON URL") },
-                        placeholder = { Text("https://example.com/version.json") },
+                        label = { Text("GitHub Releases API / Version URL") },
+                        placeholder = { Text("https://api.github.com/repos/alya-assistant/alya/releases/latest") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("update_url_input_field"),
@@ -152,7 +156,7 @@ fun AppUpdateCard(
                         textStyle = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        text = "JSON must include \"versionCode\", \"versionName\", and \"apkUrl\".",
+                        text = "Supports GitHub Releases API or JSON with \"versionCode\", \"versionName\", and \"apkUrl\".",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
                         fontSize = 11.sp
@@ -222,13 +226,13 @@ fun AppUpdateCard(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Alya is up to date",
+                                    text = "Alya Assistant is up to date",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF1B5E20)
                                 )
                                 Text(
-                                    text = "Installed version (v${status.currentVersionName}) is the latest available.",
+                                    text = "Latest GitHub Version: v${status.currentVersionName} (Build $currentVersionCode)",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFF2E7D32)
                                 )
@@ -236,19 +240,36 @@ fun AppUpdateCard(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = {
-                            if (onCheckForUpdates != null) {
-                                onCheckForUpdates()
-                            } else {
-                                scope.launch { updateManager.checkForUpdate(urlInput) }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Check Again")
+                        OutlinedButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/alya-assistant/alya/releases"))
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                try {
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("GitHub Releases", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Button(
+                            onClick = {
+                                if (onCheckForUpdates != null) {
+                                    onCheckForUpdates()
+                                } else {
+                                    scope.launch { updateManager.checkForUpdate(urlInput) }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Check Again", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
 
@@ -269,7 +290,7 @@ fun AppUpdateCard(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "New Version Available: v${info.versionName}",
+                                    text = "Alya Assistant v${info.versionName} Available",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary

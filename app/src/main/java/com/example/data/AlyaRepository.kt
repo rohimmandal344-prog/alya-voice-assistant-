@@ -401,7 +401,7 @@ class AlyaRepository(
         val isUltraLowLatency = preferences.ultraLowLatencyMode.value
         val maxTokens = if (isVoiceMode && isUltraLowLatency) 280 else if (isVoiceMode) 360 else 512
 
-        val isNetworkAvailableFlow = com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
+        val isNetworkAvailableFlow = isNetworkAvailable() || com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
 
         if (!isNetworkAvailableFlow) {
             val parsedAction = com.example.data.ai.OfflineNluEngine.parseCommand(userText)

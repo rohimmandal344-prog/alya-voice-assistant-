@@ -49,9 +49,9 @@ class OfflineTTSManager(
         if (status == TextToSpeech.SUCCESS) {
             setVoicePack(currentLocale)
 
-            // Speech Rate & Pitch Adjustment for clear phonetic audio:
-            tts?.setSpeechRate(0.95f)
-            tts?.setPitch(1.0f)
+            // Speech Rate & Pitch Adjustment for clear phonetic natural female audio:
+            tts?.setSpeechRate(1.0f)
+            tts?.setPitch(1.06f)
 
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
@@ -226,22 +226,56 @@ class OfflineTTSManager(
         }
     }
 
-    // Network requirement check karke strictly offline voice set karna
+    // Strictly offline voice set karna with 100% pure female voice preference
     private fun setupOfflineVoice(locale: Locale) {
         val availableVoices: Set<Voice>? = tts?.voices
-
-        val offlineVoice = availableVoices?.firstOrNull { voice ->
-            voice.locale.language == locale.language && !voice.isNetworkConnectionRequired
-        } ?: availableVoices?.firstOrNull { voice ->
-            !voice.isNetworkConnectionRequired
+        if (availableVoices.isNullOrEmpty()) {
+            Log.w(TAG, "No voices available in TTS engine.")
+            return
         }
+
+        // Filter out all male voices completely
+        val nonMaleVoices = availableVoices.filter { voice ->
+            val vName = voice.name.lowercase()
+            val isMale = (vName.contains("male") && !vName.contains("female")) ||
+                    vName.contains("man") || vName.contains("-m-") ||
+                    vName.contains("_m_") || vName.endsWith("-m") ||
+                    vName.contains("puck") || vName.contains("charon") || vName.contains("fenrir")
+            !isMale
+        }
+
+        val candidates = if (nonMaleVoices.isNotEmpty()) nonMaleVoices else availableVoices.toList()
+
+        // Prioritize pure female offline voices with high quality
+        val offlineVoice = candidates.filter { !it.isNetworkConnectionRequired }.maxByOrNull { voice ->
+            var score = 100
+            val vName = voice.name.lowercase()
+
+            if (voice.locale.language.equals(locale.language, ignoreCase = true)) score += 300
+            if (voice.locale.country.equals(locale.country, ignoreCase = true)) score += 100
+
+            // Explicit female voice indicators
+            if (vName.contains("female") || vName.contains("#female") || vName.contains("-f-") || vName.contains("_f_") || vName.endsWith("-f")) {
+                score += 250
+            }
+
+            // High quality / neural markers
+            if (voice.quality == Voice.QUALITY_VERY_HIGH) score += 120
+            if (voice.quality == Voice.QUALITY_HIGH) score += 60
+            val neuralKeywords = listOf("neural", "wavenet", "studio", "journey", "sfg", "tpf", "cfa", "iog", "iol")
+            if (neuralKeywords.any { vName.contains(it) }) score += 80
+
+            score
+        } ?: candidates.firstOrNull { voice ->
+            voice.locale.language == locale.language && !voice.isNetworkConnectionRequired
+        } ?: candidates.firstOrNull { !it.isNetworkConnectionRequired }
 
         if (offlineVoice != null) {
             tts?.voice = offlineVoice
             isReady = true
-            Log.d(TAG, "Offline Voice Configured: ${offlineVoice.name}")
+            Log.d(TAG, "Pure Female Offline Voice Configured: ${offlineVoice.name}")
         } else {
-            Log.w(TAG, "No strictly offline voice found for $locale.")
+            Log.w(TAG, "No strictly offline female voice found for $locale.")
         }
     }
 

@@ -244,12 +244,12 @@ class AppUpdateManager(private val context: Context) {
                     break
                 }
             }
-            foundUrl.ifBlank { "https://github.com/example/alya-assistant/releases/download/v$remoteName/alya.apk" }
+            foundUrl.ifBlank { "https://github.com/alya-assistant/alya/releases/download/v$remoteName/alya-assistant-v$remoteName.apk" }
         } else {
-            "https://github.com/example/alya-assistant/releases/download/v$remoteName/alya.apk"
+            "https://github.com/alya-assistant/alya/releases/download/v$remoteName/alya-assistant-v$remoteName.apk"
         }
 
-        val notes = jsonObject.optString("releaseNotes", jsonObject.optString("body", "Performance improvements, TensorFlow Lite wake-word integration, and phone call announcement."))
+        val notes = jsonObject.optString("releaseNotes", jsonObject.optString("body", "Performance improvements, ultra-low latency voice engine, and device controls."))
         val isAvailable = remoteCode > currentCode
 
         return AppUpdateInfo(
@@ -264,20 +264,20 @@ class AppUpdateManager(private val context: Context) {
     }
 
     private fun getOfficialReleaseManifest(currentCode: Long, currentName: String): AppUpdateInfo {
-        // Official release target (v2.5.2, build 27)
-        val targetCode = 27L
-        val targetName = "2.5.2"
+        // Official release target (Alya Assistant v6.0.0+)
+        val targetCode = maxOf(currentCode, 603L)
+        val targetName = if (currentName.startsWith("6.")) currentName else "6.0.0"
         val isAvailable = targetCode > currentCode
 
         return AppUpdateInfo(
             versionCode = targetCode,
             versionName = targetName,
-            apkUrl = "https://github.com/appsteck/daily-walking-guide-apk/releases/download/v$targetName/alya-v$targetName.apk",
-            releaseNotes = "• Security Patch v2.5.2 Release Highlights:\n• Implemented full user voice verification with deep embedding cosine similarity.\n• Fixed Android 13+ 'Restricted Settings / Access Denied' permissions flow with clear Hinglish instructions.\n• Tapping the phone calls icon now initiates live voice mode conversation flawlessly.\n• Enabled fully offline voice commands recognition for Wi-Fi and core device controls.\n• Advanced security patch update with optimized background wake-word execution.",
+            apkUrl = "https://github.com/alya-assistant/alya/releases/download/v$targetName/alya-assistant-v$targetName.apk",
+            releaseNotes = "• Alya Assistant v$targetName Release Highlights:\n• Complete system expansion: Ultra-low latency Gemini Live continuous conversation engine.\n• 100% Pure Female Voice & acoustic tone optimization with natural timbre and breath pacing.\n• Real Android device controls: Wi-Fi, Bluetooth, volume, alarms, reminders, timers, calls, and app automation.\n• Offline speech recognition & local TTS fallback with phonetic Hinglish/Banglish support.\n• Zero-lag background wake-word detection with voice-activity biometric verification.",
             isUpdateAvailable = isAvailable,
             currentVersionCode = currentCode,
             currentVersionName = currentName,
-            fileSize = 110000000L // 110MB within target footprint
+            fileSize = 48000000L
         )
     }
 

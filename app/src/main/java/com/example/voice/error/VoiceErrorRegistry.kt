@@ -80,6 +80,16 @@ class VoiceErrorRegistry private constructor() {
     private val _errorHistory = MutableStateFlow<List<VoiceError>>(emptyList())
     val errorHistory: StateFlow<List<VoiceError>> = _errorHistory.asStateFlow()
 
+    private fun isDeviceOnline(): Boolean {
+        return try {
+            val active = connectivityManager?.activeNetwork ?: return false
+            val caps = connectivityManager?.getNetworkCapabilities(active) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true // safe fallback
+        }
+    }
+
     private val networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: android.net.Network) {
             updateNetworkStatus(true)
@@ -87,8 +97,9 @@ class VoiceErrorRegistry private constructor() {
         }
 
         override fun onLost(network: android.net.Network) {
-            updateNetworkStatus(false)
-            Log.i(TAG, "Network is OFFLINE.")
+            val online = isDeviceOnline()
+            updateNetworkStatus(online)
+            Log.i(TAG, "Network callback onLost. Device online state: $online")
         }
 
         override fun onCapabilitiesChanged(
@@ -109,6 +120,11 @@ class VoiceErrorRegistry private constructor() {
         if (isNetworkCallbackRegistered) return
         try {
             connectivityManager = context.applicationContext.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            
+            // Immediate check of current active network
+            val currentlyOnline = isDeviceOnline()
+            updateNetworkStatus(currentlyOnline)
+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                 connectivityManager?.registerDefaultNetworkCallback(networkCallback)
             } else {
@@ -118,7 +134,7 @@ class VoiceErrorRegistry private constructor() {
                 connectivityManager?.registerNetworkCallback(request, networkCallback)
             }
             isNetworkCallbackRegistered = true
-            Log.i(TAG, "Network Callback registered successfully.")
+            Log.i(TAG, "Network Callback registered successfully. Initial online state: $currentlyOnline")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to register network callback: ${e.message}", e)
         }
