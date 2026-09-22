@@ -43,6 +43,16 @@ class AlyaRepository(
 
     val geminiClient = GeminiApiClient()
     val toolExecutor = ToolExecutor(context)
+    
+    // Alya Provider & Brain Architecture
+    val defaultModelProvider = com.example.alya.provider.impl.GeminiModelProvider(geminiClient)
+    val alyaBrain = com.example.alya.brain.AlyaBrain(defaultModelProvider, toolExecutor)
+    val alyaApiGateway = com.example.alya.api.AlyaApiGateway(
+        brain = alyaBrain,
+        memoryDao = memoryDao,
+        capabilityManager = com.example.capability.CapabilityManager.getInstance(context)
+    )
+
     val updateManager = AppUpdateManager(context)
     val versionCheckManager = com.example.update.VersionCheckManager(context, preferences)
     val taskScheduler = TaskScheduler(context)

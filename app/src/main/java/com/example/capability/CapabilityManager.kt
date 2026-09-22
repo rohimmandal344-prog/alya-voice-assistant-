@@ -608,6 +608,122 @@ class CapabilityManager(private val context: Context) {
         }
     }
 
+    /**
+     * Storage & Media Runtime Permission Helper.
+     * Manages backward-compatible migration from Android 10 legacy storage
+     * to Android 13/14+ granular media and photo picker permissions.
+     */
+    class StoragePermissionHelper(private val context: Context) {
+
+        enum class StorageAccessLevel {
+            FULL_DEVICE_STORAGE,   // MANAGE_EXTERNAL_STORAGE (Android 11+)
+            LEGACY_READ_WRITE,     // READ/WRITE_EXTERNAL_STORAGE (Android 10 & below)
+            GRANULAR_MEDIA_FULL,   // READ_MEDIA_IMAGES, VIDEO, AUDIO (Android 13+)
+            GRANULAR_MEDIA_PARTIAL,// READ_MEDIA_VISUAL_USER_SELECTED (Android 14+)
+            SANDBOX_ONLY           // App-specific internal & external files directory only
+        }
+
+        data class StorageState(
+            val accessLevel: StorageAccessLevel,
+            val canReadImages: Boolean,
+            val canReadVideos: Boolean,
+            val canReadAudio: Boolean,
+            val isPartialVisualAccess: Boolean,
+            val hasAllFilesAccess: Boolean,
+            val requiredPermissionsToRequest: List<String>
+        )
+
+        /**
+         * Resolves the current real storage and media permission state for the running Android OS version.
+         */
+        fun getStorageState(): StorageState {
+            val sdk = Build.VERSION.SDK_INT
+            val hasAllFiles = if (sdk >= Build.VERSION_CODES.R) {
+                android.os.Environment.isExternalStorageManager()
+            } else {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            }
+
+            var canReadImages = false
+            var canReadVideos = false
+            var canReadAudio = false
+            var isPartialVisual = false
+
+            when {
+                // Android 14+ (API 34+): Granular Photo/Video/Audio + Visual User Selected (Partial Access)
+                sdk >= 34 -> {
+                    val fullImages = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                    val fullVideos = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                    val partialVisual = ContextCompat.checkSelfPermission(context, "android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED
+                    canReadAudio = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+                    canReadImages = fullImages || partialVisual
+                    canReadVideos = fullVideos || partialVisual
+                    isPartialVisual = partialVisual && (!fullImages || !fullVideos)
+                }
+                // Android 13 (API 33, Tiramisu): Granular Media Permissions
+                sdk >= Build.VERSION_CODES.TIRAMISU -> {
+                    canReadImages = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                    canReadVideos = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                    canReadAudio = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+                }
+                // Android 10 - 12 (API 29 - 32): Legacy READ_EXTERNAL_STORAGE
+                else -> {
+                    val legacyRead = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                    canReadImages = legacyRead
+                    canReadVideos = legacyRead
+                    canReadAudio = legacyRead
+                }
+            }
+
+            val accessLevel = when {
+                hasAllFiles -> StorageAccessLevel.FULL_DEVICE_STORAGE
+                sdk >= 34 && isPartialVisual -> StorageAccessLevel.GRANULAR_MEDIA_PARTIAL
+                sdk >= Build.VERSION_CODES.TIRAMISU && canReadImages && canReadAudio -> StorageAccessLevel.GRANULAR_MEDIA_FULL
+                sdk < Build.VERSION_CODES.TIRAMISU && canReadImages -> StorageAccessLevel.LEGACY_READ_WRITE
+                else -> StorageAccessLevel.SANDBOX_ONLY
+            }
+
+            return StorageState(
+                accessLevel = accessLevel,
+                canReadImages = canReadImages,
+                canReadVideos = canReadVideos,
+                canReadAudio = canReadAudio,
+                isPartialVisualAccess = isPartialVisual,
+                hasAllFilesAccess = hasAllFiles,
+                requiredPermissionsToRequest = getPermissionsForMigration()
+            )
+        }
+
+        /**
+         * Computes the exact array of permission strings to request based on Android version.
+         */
+        fun getPermissionsForMigration(): List<String> {
+            val sdk = Build.VERSION.SDK_INT
+            return when {
+                // Android 14+: Request granular media + visual user selected
+                sdk >= 34 -> listOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_AUDIO,
+                    "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+                )
+                // Android 13: Request granular media permissions
+                sdk >= Build.VERSION_CODES.TIRAMISU -> listOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_AUDIO
+                )
+                // Android 10 - 12: Request classic read external storage
+                else -> listOf(
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                )
+            }
+        }
+    }
+
+    val storagePermissionHelper = StoragePermissionHelper(context)
+
     companion object {
         private const val TAG = "CapabilityManager"
 

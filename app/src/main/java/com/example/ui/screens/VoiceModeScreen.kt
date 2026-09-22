@@ -254,6 +254,21 @@ fun VoiceModeScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+                Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
+                    onClick = {
+                        viewModel.stopVoiceMode()
+                        onClose()
+                    },
+                    modifier = Modifier.size(36.dp).testTag("voice_mode_top_close_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Live Voice Mode",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 

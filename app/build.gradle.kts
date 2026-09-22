@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.ByteArrayOutputStream
 
 plugins {
   alias(libs.plugins.android.application)
@@ -10,6 +11,42 @@ plugins {
   alias(libs.plugins.firebase.crashlytics)
 }
 
+val gitCommitCountProvider: Provider<Int> = providers.of(GitCommitCountValueSource::class.java) {}
+val gitVersionNameProvider: Provider<String> = providers.of(GitVersionNameValueSource::class.java) {}
+
+abstract class GitCommitCountValueSource : ValueSource<Int, ValueSourceParameters.None> {
+  override fun obtain(): Int {
+    return try {
+      val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .redirectErrorStream(true)
+        .start()
+      val countStr = process.inputStream.bufferedReader().readText().trim()
+      val count = countStr.toIntOrNull() ?: 1
+      600 + count
+    } catch (e: Exception) {
+      601
+    }
+  }
+}
+
+abstract class GitVersionNameValueSource : ValueSource<String, ValueSourceParameters.None> {
+  override fun obtain(): String {
+    return try {
+      val process = ProcessBuilder("git", "describe", "--tags", "--always")
+        .redirectErrorStream(true)
+        .start()
+      val tag = process.inputStream.bufferedReader().readText().trim()
+      if (tag.isNotBlank()) {
+        if (tag.startsWith("v")) tag.substring(1) else tag
+      } else {
+        "6.0.0-stable"
+      }
+    } catch (e: Exception) {
+      "6.0.0-stable"
+    }
+  }
+}
+
 android {
   namespace = "com.example"
   compileSdk = 36
@@ -18,8 +55,8 @@ android {
     applicationId = "com.aistudio.alya.assistant.bxmdzt"
     minSdk = 24
     targetSdk = 34
-    versionCode = 600
-    versionName = "6.0.0-stable"
+    versionCode = gitCommitCountProvider.get()
+    versionName = gitVersionNameProvider.get()
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

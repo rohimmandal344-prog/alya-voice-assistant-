@@ -566,36 +566,7 @@ fun MainChatScreen(
                 }
             }
 
-            // Rate Limit / Offline Cooldown Banner
-            AnimatedVisibility(visible = !isNetworkAvailable) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .testTag("offline_banner")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudOff,
-                            contentDescription = "Offline Mode",
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(16.dp).padding(end = 8.dp)
-                        )
-                        Text(
-                            text = "Offline Mode. Local device controls active.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-            
+            // Rate Limit Cooldown Banner
             AnimatedVisibility(visible = isRateLimited && isNetworkAvailable) {
                 Surface(
                     color = MaterialTheme.colorScheme.tertiaryContainer,
