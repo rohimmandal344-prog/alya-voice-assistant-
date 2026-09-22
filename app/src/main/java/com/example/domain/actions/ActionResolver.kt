@@ -301,6 +301,11 @@ class ActionResolver(private val context: Context) {
                     context.startActivity(intent)
                     Log.i(TAG, "Successfully opened app: ${appResolution.app.label}")
                     
+                    com.example.domain.actions.DeviceContextManager.getInstance(context).updateForegroundApp(
+                        appResolution.app.packageName,
+                        appResolution.app.label
+                    )
+
                     val successResult = ToolExecutionResult(
                         success = true,
                         message = "Opening ${appResolution.app.label}.",

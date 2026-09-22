@@ -375,6 +375,8 @@ class AppLauncherManager(private val context: Context) {
                     Log.i("OpenAppLifecycle", "[LIFECYCLE_EXECUTE] Launching activity for '${app.label}' via context.startActivity()")
                     context.startActivity(intent)
 
+                    com.example.domain.actions.DeviceContextManager.getInstance(context).updateForegroundApp(app.packageName, app.label)
+
                     ToolExecutionResult(
                         success = true,
                         message = "Opening ${app.label}.",

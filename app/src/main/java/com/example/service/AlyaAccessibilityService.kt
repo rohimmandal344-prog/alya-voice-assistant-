@@ -278,9 +278,12 @@ class AlyaAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
-        // Auto-detect secure applications (payment / banking) in foreground to auto-dismiss overlays
+        // Auto-detect secure applications (payment / banking) and sync foreground app with DeviceContextManager
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: ""
+            if (packageName.isNotBlank()) {
+                com.example.domain.actions.DeviceContextManager.getInstance(applicationContext).updateForegroundApp(packageName)
+            }
             handleForegroundPackageChanged(packageName)
         }
     }
