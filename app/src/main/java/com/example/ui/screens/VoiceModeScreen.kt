@@ -79,6 +79,7 @@ fun VoiceModeScreen(
 
     val geminiLiveState by viewModel.geminiLiveClient.sessionState.collectAsState()
     val liveTranscript by viewModel.liveAssistantTranscript.collectAsState()
+    val playbackProgressMs by viewModel.pcmAudioPlayer.playbackProgressMs.collectAsState()
 
     val isThinking by viewModel.isThinking.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
@@ -309,65 +310,111 @@ fun VoiceModeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Speech Transcript Bubbles: Scrollable History
-            LazyColumn(
-                state = listState,
+            // Speech Transcript Bubbles & Live Gemini Subtitles Container
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(280.dp)
-                    .padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 8.dp)
             ) {
-                if (subtitles.isEmpty()) {
-                    item {
-                        Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "\"Hey Alya, turn on the flashlight.\"",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
+                if (subtitles.isEmpty() && liveTranscript.isBlank() && partialText.isBlank()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "\"Hey Alya, turn on the flashlight.\"",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Speak naturally or give commands in any language",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     }
                 } else {
-                    items(subtitles, key = { it.id }) { subtitle ->
-                        val isUser = subtitle.speaker == "user"
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
-                        ) {
-                            Surface(
-                                shape = if (isUser) {
-                                    RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-                                } else {
-                                    RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
-                                },
-                                color = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                                tonalElevation = if (subtitle.isInterim) 0.dp else 2.dp,
-                                modifier = Modifier.widthIn(max = 280.dp)
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(subtitles, key = { it.id }) { subtitle ->
+                            val isUser = subtitle.speaker == "user"
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
                             ) {
-                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                    Text(
-                                        text = if (isUser) "You" else "Alya",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isUser) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                Surface(
+                                    shape = if (isUser) {
+                                        RoundedCornerShape(topStart = 18.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+                                    } else {
+                                        RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+                                    },
+                                    color = if (isUser) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+                                    },
+                                    tonalElevation = if (subtitle.isInterim) 0.dp else 3.dp,
+                                    modifier = Modifier.widthIn(max = 300.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = if (isUser) "You" else "Alya",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isUser) {
+                                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.primary
+                                                }
+                                            )
+                                            if (subtitle.isInterim) {
+                                                Text(
+                                                    text = "● Live",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        val displayText = if (!isUser && subtitle.isInterim) {
+                                            getRevealedText(subtitle.text, playbackProgressMs, isLiveStreaming)
                                         } else {
-                                            MaterialTheme.colorScheme.primary
-                                        },
-                                        modifier = if (isUser) Modifier.align(Alignment.End) else Modifier.align(Alignment.Start)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = subtitle.text,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = if (isUser) TextAlign.End else TextAlign.Start,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                            subtitle.text
+                                        }
+                                        Text(
+                                            text = displayText,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isUser) FontWeight.Normal else FontWeight.Medium,
+                                            color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = if (isUser) TextAlign.End else TextAlign.Start,
+                                            lineHeight = 22.sp,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -580,5 +627,24 @@ fun VoiceModeScreen(
                     .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.18f))
             )
         }
+    }
+}
+
+private fun getRevealedText(fullText: String, progressMs: Long, isLiveStreaming: Boolean): String {
+    if (!isLiveStreaming || progressMs <= 0L) return fullText
+    
+    // Check for CJK (Chinese, Japanese, Korean) characters
+    val hasCjk = fullText.any { it.code in 0x3000..0x9FFF }
+    if (hasCjk) {
+        // Average Japanese spoken speed: ~6-7 chars per second
+        val charsToShow = (progressMs / 150L).toInt() + 1
+        return fullText.take(charsToShow)
+    } else {
+        // Space-separated languages (English, Hindi, Bengali, Spanish, etc.)
+        val words = fullText.split("\\s+".toRegex())
+        if (words.size <= 1) return fullText
+        // Average speaking rate: ~150 words/min => ~1 word per 400ms
+        val wordsToShow = (progressMs / 380L).toInt() + 1
+        return words.take(wordsToShow).joinToString(" ")
     }
 }

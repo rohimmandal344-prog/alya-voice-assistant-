@@ -43,6 +43,9 @@ class PcmAudioTrackPlayer(
     private val _isPlaybackActive = MutableStateFlow(false)
     val isPlaybackActive: StateFlow<Boolean> = _isPlaybackActive.asStateFlow()
 
+    private val _playbackProgressMs = MutableStateFlow(0L)
+    val playbackProgressMs: StateFlow<Long> = _playbackProgressMs.asStateFlow()
+
     // Precise frame counting
     private val totalFramesWritten = AtomicLong(0)
     private val chunksReceivedCount = AtomicLong(0)
@@ -51,6 +54,39 @@ class PcmAudioTrackPlayer(
     // Turn lifecycle state guards
     private val isTurnActive = AtomicBoolean(false)
     private val isServerTurnComplete = AtomicBoolean(false)
+
+    private var progressTrackingJob: Job? = null
+
+    private fun startProgressTracking() {
+        progressTrackingJob?.cancel()
+        progressTrackingJob = scope.launch {
+            while (isActive && _isPlaybackActive.value) {
+                val track = audioTrack
+                if (track != null && track.state == AudioTrack.STATE_INITIALIZED) {
+                    val rawHead = track.playbackHeadPosition.toLong() and 0xFFFFFFFFL
+                    val playedFrames = (rawHead - baselineHeadPosition).coerceAtLeast(0L)
+                    val playedMs = (playedFrames * 1000L) / sampleRate
+                    _playbackProgressMs.value = playedMs
+                }
+                delay(100)
+            }
+        }
+    }
+
+    private fun stopProgressTracking() {
+        progressTrackingJob?.cancel()
+        progressTrackingJob = null
+        _playbackProgressMs.value = 0L
+    }
+
+    private fun updatePlaybackActive(active: Boolean) {
+        _isPlaybackActive.value = active
+        if (active) {
+            startProgressTracking()
+        } else {
+            stopProgressTracking()
+        }
+    }
 
     var onPlaybackStarted: (() -> Unit)? = null
     var onPlaybackFinished: (() -> Unit)? = null
@@ -206,7 +242,7 @@ class PcmAudioTrackPlayer(
                                     activeTrack.play()
                                     if (!isPlayingState.get()) {
                                         isPlayingState.set(true)
-                                        _isPlaybackActive.value = true
+                                        updatePlaybackActive(true)
                                         com.example.voice.audio.AudioLockManager.getInstance(com.example.AlyaApplication.instance).acquireLock(com.example.voice.audio.AudioLockReason.PCM_STREAMING)
                                         onPlaybackStarted?.invoke()
                                     }
@@ -217,7 +253,7 @@ class PcmAudioTrackPlayer(
                         } else if (activeTrack != null && activeTrack.playState == AudioTrack.PLAYSTATE_PLAYING) {
                             if (!isPlayingState.get()) {
                                 isPlayingState.set(true)
-                                _isPlaybackActive.value = true
+                                updatePlaybackActive(true)
                                 com.example.voice.audio.AudioLockManager.getInstance(com.example.AlyaApplication.instance).acquireLock(com.example.voice.audio.AudioLockReason.PCM_STREAMING)
                                 onPlaybackStarted?.invoke()
                             }
@@ -236,7 +272,7 @@ class PcmAudioTrackPlayer(
                 onError?.invoke("Playback error: ${e.message}")
             } finally {
                 isPlayingState.set(false)
-                _isPlaybackActive.value = false
+                updatePlaybackActive(false)
                 isTurnActive.set(false)
                 isServerTurnComplete.set(false)
                 com.example.voice.audio.AudioLockManager.getInstance(com.example.AlyaApplication.instance).releaseLock(com.example.voice.audio.AudioLockReason.PCM_STREAMING)
@@ -270,7 +306,7 @@ class PcmAudioTrackPlayer(
                     val recheckedPlayed = recheckedHead - baselineHeadPosition
                     if (com.example.audio.AudioSessionManager.getBufferDepthMs() == 0 && (writtenFrames - recheckedPlayed) <= 0L) {
                         if (isPlayingState.compareAndSet(true, false)) {
-                            _isPlaybackActive.value = false
+                            updatePlaybackActive(false)
                             isTurnActive.set(false)
                             isServerTurnComplete.set(false)
                             onPlaybackFinished?.invoke()
@@ -302,7 +338,7 @@ class PcmAudioTrackPlayer(
                     track.play()
                     if (!isPlayingState.get()) {
                         isPlayingState.set(true)
-                        _isPlaybackActive.value = true
+                        updatePlaybackActive(true)
                         onPlaybackStarted?.invoke()
                     }
                 } catch (e: Exception) {
@@ -364,7 +400,7 @@ class PcmAudioTrackPlayer(
             Log.w(TAG, "Error during AudioTrack flush: ${e.message}")
         } finally {
             isPlayingState.set(false)
-            _isPlaybackActive.value = false
+            updatePlaybackActive(false)
             com.example.voice.audio.AudioLockManager.getInstance(com.example.AlyaApplication.instance).releaseLock(com.example.voice.audio.AudioLockReason.PCM_STREAMING)
         }
     }
@@ -395,7 +431,7 @@ class PcmAudioTrackPlayer(
             Log.w(TAG, "Error cleanly stopping AudioTrack: ${e.message}")
         } finally {
             isPlayingState.set(false)
-            _isPlaybackActive.value = false
+            updatePlaybackActive(false)
         }
     }
 

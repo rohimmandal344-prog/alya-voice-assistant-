@@ -25,7 +25,7 @@ object SystemThoughtFilter {
         clean = clean.replace(Regex("(?i)<thought>[\\s\\S]*?</thought>"), "")
         clean = clean.replace(Regex("(?i)<reasoning>[\\s\\S]*?</reasoning>"), "")
 
-        // 2. Remove markdown reasoning headers and thought blocks
+        // 2. Remove specific markdown reasoning headers only (do NOT erase valid bold text)
         clean = clean.replace(Regex("(?i)\\*\\*Crafting[^*]*\\*\\*"), "")
         clean = clean.replace(Regex("(?i)\\*\\*Checking[^*]*\\*\\*"), "")
         clean = clean.replace(Regex("(?i)\\*\\*Processing[^*]*\\*\\*"), "")
@@ -35,7 +35,8 @@ object SystemThoughtFilter {
         clean = clean.replace(Regex("(?i)\\*\\*Interpreting[^*]*\\*\\*"), "")
         clean = clean.replace(Regex("(?i)\\*\\*Acknowledge[^*]*\\*\\*"), "")
         clean = clean.replace(Regex("(?i)\\*\\*Initiating[^*]*\\*\\*"), "")
-        clean = clean.replace(Regex("(?i)\\*\\*[^*]+\\*\\*"), "") // Any double asterisk header
+        clean = clean.replace(Regex("(?i)\\*\\*Thought[^*]*\\*\\*"), "")
+        clean = clean.replace(Regex("(?i)\\*\\*Reasoning[^*]*\\*\\*"), "")
         clean = clean.replace(Regex("(?i)^thought:.*$", RegexOption.MULTILINE), "")
         clean = clean.replace(Regex("(?i)^reasoning:.*$", RegexOption.MULTILINE), "")
         clean = clean.replace(Regex("(?i)I've registered the user's[^\n]*"), "")
@@ -55,6 +56,10 @@ object SystemThoughtFilter {
         clean = clean.replace(Regex("(?i)This aligns with the specified length[^\n.]*\\.?"), "")
         clean = clean.replace(Regex("(?i)This adheres to the specified structure[^\n.]*\\.?"), "")
         clean = clean.replace(Regex("(?i)This balances the prompt's requirements[^\n.]*\\.?"), "")
+
+        // Unwrap bold and italic formatting without deleting the enclosed text
+        clean = clean.replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
+        clean = clean.replace(Regex("\\*([^*]+)\\*"), "$1")
 
         // 3. Remove embedded Action tags like [ACTION: ...] or ```action ... ```
         clean = clean.replace(Regex("\\[ACTION:[^\\]]+\\]", RegexOption.IGNORE_CASE), "")

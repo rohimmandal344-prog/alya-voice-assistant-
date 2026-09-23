@@ -65,6 +65,7 @@ class AudioRecordManager private constructor(private val context: Context) {
     private var recordingJob: Job? = null
     private val isRecording = AtomicBoolean(false)
     private var isBackgroundWakeWordPaused = AtomicBoolean(false)
+    private var audioEnhancer: com.example.voice.audio.AudioEnhancer? = null
 
     var onAudioFrameCaptured: ((ShortArray, Int, Float) -> Unit)? = null
 
@@ -198,19 +199,23 @@ class AudioRecordManager private constructor(private val context: Context) {
             activeAudioRecord = record
             isRecording.set(true)
 
+            audioEnhancer = com.example.voice.audio.AudioEnhancer().apply {
+                attachHardwareEffects(record.audioSessionId)
+            }
+
             recordingJob?.cancel()
             recordingJob = scope.launch {
                 val pcmBuffer = ShortArray(320) // 20ms chunks
                 while (isRecording.get() && activeAudioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                     val readSize = activeAudioRecord?.read(pcmBuffer, 0, pcmBuffer.size) ?: -1
                     if (readSize > 0) {
-                        val rms = calculateRms(pcmBuffer, readSize)
+                        val rms = audioEnhancer?.processAudioFrame(pcmBuffer, readSize) ?: (calculateRms(pcmBuffer, readSize) * 100.0f)
                         _audioRmsAmplitude.value = rms
                         onAudioFrameCaptured?.invoke(pcmBuffer, readSize, rms)
                     }
                 }
             }
-            Log.i(TAG, "AudioRecord started successfully for owner=${_currentOwner.value}, mode=${_currentMode.value}")
+            Log.i(TAG, "AudioRecord started successfully with AudioEnhancer for owner=${_currentOwner.value}, mode=${_currentMode.value}")
             true
         }
     }
@@ -219,6 +224,8 @@ class AudioRecordManager private constructor(private val context: Context) {
         isRecording.set(false)
         recordingJob?.cancel()
         recordingJob = null
+        audioEnhancer?.release()
+        audioEnhancer = null
 
         try {
             activeAudioRecord?.let { record ->

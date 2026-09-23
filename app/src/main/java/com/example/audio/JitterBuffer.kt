@@ -11,16 +11,23 @@ import java.util.concurrent.atomic.AtomicLong
  * Specialized class for normalizing incoming audio frames and smoothing playback.
  * 1. Buffers variable-sized network audio packets.
  * 2. Applies adaptive timing normalization to reduce artifacts and smooth jitter.
- * 3. Supports dynamic depth adjustment and latency-aware frame shedding.
+ * 3. Uses byte-based capacity calculation instead of raw packet count to avoid
+ *    premature shedding on small packet sizes (e.g., from network framing).
  */
 class JitterBuffer(
     private val tag: String = "JitterBuffer",
-    private val initialMinDepth: Int = 1, // Ultra-low latency: start immediately on first chunk
-    private val maxDepth: Int = 12  // Max ~240ms buffer
+    private val initialMinDepth: Int = 1,
+    private val maxDepth: Int = 12
 ) {
     private val queue = ConcurrentLinkedQueue<ByteArray>()
-    private val minDepth = AtomicInteger(1) // Ultra-low latency: start immediately on first chunk
+    private val minDepth = AtomicInteger(1)
     private val lastPollTime = AtomicLong(0L)
+    
+    // Precise byte count tracker for 24kHz 16-bit Mono PCM (48,000 bytes/sec)
+    private val totalBytes = AtomicLong(0L)
+    
+    // Maximum bytes to buffer (~300ms max buffer depth to prevent latency drift)
+    private val maxBufferBytes = 14400L // 0.3s * 48000 bytes/sec
     
     // Adaptive jitter tracking
     private val lastArrivalJitter = AtomicLong(0L)
@@ -32,7 +39,7 @@ class JitterBuffer(
     }
     
     /**
-     * Enqueues an audio packet. If the buffer is full (exceeds maxDepth),
+     * Enqueues an audio packet. If the buffer is full (exceeds maxBufferBytes),
      * it sheds the oldest frame to maintain low latency.
      */
     fun enqueue(packet: ByteArray) {
@@ -50,19 +57,24 @@ class JitterBuffer(
         lastArrivalJitter.set(now)
 
         queue.offer(packet)
+        totalBytes.addAndGet(packet.size.toLong())
         
-        // Auto-shedding to prevent latency drift (Stay under 200ms target)
-        // Aggressive shedding if queue grows too fast to maintain < 20ms-40ms apparent latency
-        while (queue.size > maxDepth) {
-            queue.poll()
-            Log.w(tag, "[JITTER_SHEDDING] Shedding stale frame. Size: ${queue.size}")
+        // Auto-shedding based on total buffered audio duration (bytes) instead of packet count.
+        // This ensures small network MTU slices are never discarded prematurely.
+        while (totalBytes.get() > maxBufferBytes && queue.isNotEmpty()) {
+            val discarded = queue.poll()
+            if (discarded != null) {
+                val newBytes = totalBytes.addAndGet(-discarded.size.toLong())
+                Log.w(tag, "[JITTER_SHEDDING] Shedding stale frame to maintain <300ms latency. Buffered bytes: $newBytes")
+            } else {
+                break
+            }
         }
     }
 
     private fun updateAdaptiveDepth() {
         if (arrivalIntervals.isEmpty()) return
         val avgInterval = arrivalIntervals.average()
-        // If jitter is high (> 30ms for 20ms frames), increase minDepth to prevent clicks
         if (avgInterval > 35.0) {
             setMinDepth(2)
         } else if (avgInterval < 25.0) {
@@ -72,11 +84,15 @@ class JitterBuffer(
     
     /**
      * Polls the next audio packet for playback.
-     * AudioTrack handles its own hardware clocking via WRITE_BLOCKING, so chunks are delivered immediately.
+     * Enforces prebuffering threshold unless the server has finished sending the turn.
      */
     fun poll(isTurnComplete: Boolean = false): ByteArray? {
+        if (!isTurnComplete && queue.size < minDepth.get()) {
+            return null
+        }
         val chunk = queue.poll()
         if (chunk != null) {
+            totalBytes.addAndGet(-chunk.size.toLong())
             lastPollTime.set(System.currentTimeMillis())
         }
         return chunk
@@ -87,13 +103,13 @@ class JitterBuffer(
      */
     fun clear() {
         queue.clear()
+        totalBytes.set(0L)
         lastPollTime.set(0L)
         lastArrivalJitter.set(0L)
     }
     
     /**
      * Updates the minimum buffering depth dynamically.
-     * Smaller values reduce latency; larger values increase stability against network jitter.
      */
     fun setMinDepth(depth: Int) {
         val normalizedDepth = depth.coerceIn(1, maxDepth)
@@ -106,7 +122,10 @@ class JitterBuffer(
     fun size(): Int = queue.size
     
     /**
-     * Returns current buffer depth in milliseconds (assuming 20ms chunks).
+     * Returns current buffer depth in milliseconds (assuming 24kHz 16-bit Mono PCM).
      */
-    fun getDepthMs(): Int = queue.size * 20
+    fun getDepthMs(): Int {
+        // 48000 bytes per second = 48 bytes per millisecond
+        return (totalBytes.get() / 48).toInt()
+    }
 }

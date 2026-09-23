@@ -69,7 +69,7 @@ class MicrophoneManager(private val context: Context) {
     private val _isSpeechDetected = MutableStateFlow(false)
     val isSpeechDetected: StateFlow<Boolean> = _isSpeechDetected.asStateFlow()
 
-    private var vadThresholdDb = 15f // Baseline threshold for speech detection
+    private var vadThresholdDb = 38f // Baseline threshold for speech detection (raised from 15f to ignore ambient noise)
     private var speechTailMs = 500L // Tail period to keep speech detected after silence
     private var lastSpeechTimestamp = 0L
 
@@ -179,7 +179,7 @@ class MicrophoneManager(private val context: Context) {
                         val audioLockManager = com.example.voice.audio.AudioLockManager.getInstance(context)
 
                         // Check if mic input buffer should be muted explicitly or by the Audio Lock
-                        if (isMuted.get() || audioLockManager.shouldMuteInputBuffer(rmsDb, bargeInThresholdDb = 28.0f)) {
+                        if (isMuted.get() || audioLockManager.shouldMuteInputBuffer(rmsDb, bargeInThresholdDb = 58.0f)) {
                             java.util.Arrays.fill(frameBuffer, 0.toShort())
                             _isSpeechDetected.value = false
                             continue

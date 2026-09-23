@@ -1135,9 +1135,9 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                         // When assistant is not speaking, stream all user audio immediately
                         geminiLiveClient.sendAudioFrame(pcmBuffer, readSize)
                     } else {
-                        // When assistant is speaking, forward audio if user speaks (>= 25 dB RMS) for smooth barge-in
+                        // When assistant is speaking, forward audio if user speaks (>= 58 dB RMS) for smooth barge-in
                         val timeSincePlaybackStart = now - lastPlaybackStartTime
-                        if (timeSincePlaybackStart > 200L && rmsDb >= 25.0f) {
+                        if (timeSincePlaybackStart > 200L && rmsDb >= 58.0f) {
                             Log.i("AlyaViewModel", "Barge-in detected during assistant speech ($rmsDb dB).")
                             pcmAudioPlayer.stopAndFlushForBargeIn()
                             ttsManager.stop()

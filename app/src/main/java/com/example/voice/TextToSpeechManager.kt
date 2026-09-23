@@ -748,9 +748,34 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
             }
         }
 
-        // 2. Split speech into conversational phrases and sentences for low-latency, natural rhythm
-        val sentences = naturalSpeech.split(Regex("(?<=[.?!।])\\s+")).filter { it.isNotBlank() }
-        val finalSentences = if (sentences.isEmpty()) listOf(naturalSpeech) else sentences
+        // 2. Split speech into conversational phrases and sentences for low-latency, natural rhythm and long response support
+        val rawChunks = naturalSpeech.split(Regex("(?<=[.?!।\\n])\\s+")).filter { it.isNotBlank() }
+        val finalSentences = mutableListOf<String>()
+        
+        for (chunk in rawChunks) {
+            if (chunk.length <= 250) {
+                finalSentences.add(chunk.trim())
+            } else {
+                // Further split long paragraphs by clauses / commas
+                val subChunks = chunk.split(Regex("(?<=[,;:])\\s+")).filter { it.isNotBlank() }
+                if (subChunks.isNotEmpty()) {
+                    var currentBatch = StringBuilder()
+                    for (sub in subChunks) {
+                        if (currentBatch.length + sub.length > 200) {
+                            if (currentBatch.isNotBlank()) finalSentences.add(currentBatch.toString().trim())
+                            currentBatch = StringBuilder(sub)
+                        } else {
+                            if (currentBatch.isNotEmpty()) currentBatch.append(" ")
+                            currentBatch.append(sub)
+                        }
+                    }
+                    if (currentBatch.isNotBlank()) finalSentences.add(currentBatch.toString().trim())
+                } else {
+                    finalSentences.add(chunk.take(250).trim())
+                }
+            }
+        }
+        if (finalSentences.isEmpty()) finalSentences.add(naturalSpeech)
 
         // Pre-generate utterance IDs for all sentences to prevent premature completion callbacks
         val utteranceItems = finalSentences.map { sentence ->
