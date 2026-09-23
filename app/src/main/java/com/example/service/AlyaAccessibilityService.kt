@@ -149,9 +149,35 @@ class AlyaAccessibilityService : AccessibilityService() {
                 "open_notifications", "open_quick_settings", "open_recents", "recent_apps", "open_power_menu", "power_menu", "power_dialog",
                 "split_screen", "toggle_split_screen", "take_screenshot", "screenshot", "lock_screen", "lock_phone",
                 "double_tap", "long_press", "show_grid", "hide_grid", "tap_grid", "zoom_in", "zoom_out", "pan_magnification", "edit_text_action",
-                "go_back", "go_home", "answer_call", "accept_call", "pick_up_call", "end_call", "decline_call", "reject_call", "hang_up_call" -> true
+                "go_back", "go_home", "answer_call", "accept_call", "pick_up_call", "end_call", "decline_call", "reject_call", "hang_up_call",
+                "map_voice_intent", "action_node_intent" -> true
                 else -> false
             }
+        }
+
+        fun traverseViewHierarchy(): com.example.accessibility.ActionNode? {
+            val s = instance ?: return null
+            val root = s.rootInActiveWindow ?: return null
+            return com.example.accessibility.ActionNode.fromAccessibilityNode(root)
+        }
+
+        fun executeVoiceIntentWithActionNode(request: com.example.accessibility.VoiceIntentRequest): com.example.accessibility.ActionNodeResult {
+            val s = instance ?: run {
+                Log.w(TAG, "Accessibility service instance is inactive. Voice intent cannot be executed.")
+                return com.example.accessibility.ActionNodeResult(
+                    success = false,
+                    message = "Alya Accessibility Service is inactive."
+                )
+            }
+            val root = s.rootInActiveWindow ?: run {
+                Log.w(TAG, "Root in active window is null. Cannot build ActionNode view hierarchy.")
+                return com.example.accessibility.ActionNodeResult(
+                    success = false,
+                    message = "Active View hierarchy root is null."
+                )
+            }
+            val mapper = com.example.accessibility.VoiceIntentActionMapper.getInstance()
+            return mapper.mapAndExecuteIntent(root, request)
         }
 
         fun executeCommand(command: String, args: Map<String, String>? = null): Boolean {
@@ -556,6 +582,19 @@ class AlyaAccessibilityService : AccessibilityService() {
                 }
                 "end_call", "decline_call", "reject_call", "hang_up_call" -> {
                     performEndCallAccessibilityAction()
+                }
+                "map_voice_intent", "action_node_intent" -> {
+                    val intentName = args?.get("intent") ?: args?.get("intentName") ?: "click"
+                    val query = args?.get("target") ?: args?.get("query") ?: args?.get("text")
+                    val inputText = args?.get("text_content") ?: args?.get("content")
+                    val request = com.example.accessibility.VoiceIntentRequest(
+                        intentName = intentName,
+                        targetQuery = query,
+                        textToInput = inputText,
+                        parameters = args ?: emptyMap()
+                    )
+                    val result = executeVoiceIntentWithActionNode(request)
+                    showHUD(result.message)
                 }
             }
         }

@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.data.local.dao.CallSessionDao
+import com.example.data.local.dao.CommandSequenceDao
 import com.example.data.local.dao.ConversationDao
 import com.example.data.local.dao.LinkedDeviceDao
 import com.example.data.local.dao.MemoryDao
@@ -13,8 +14,11 @@ import com.example.data.local.dao.OfflineCommandDao
 import com.example.data.local.dao.OfflineCommandLogDao
 import com.example.data.local.dao.ScheduledTaskDao
 import com.example.data.local.dao.CustomWakeWordDao
+import com.example.data.local.dao.WeatherDao
+import com.example.data.local.entity.CachedWeatherEntity
 import com.example.data.local.entity.CallSessionEntity
 import com.example.data.local.entity.CallTranscriptEntryEntity
+import com.example.data.local.entity.CommandSequenceEntity
 import com.example.data.local.entity.ConversationEntity
 import com.example.data.local.entity.LinkedDeviceEntity
 import com.example.data.local.entity.MemoryEntity
@@ -35,9 +39,11 @@ import com.example.data.local.entity.CustomWakeWordEntity
         OfflineCommandLogEntity::class,
         CustomWakeWordEntity::class,
         CallSessionEntity::class,
-        CallTranscriptEntryEntity::class
+        CallTranscriptEntryEntity::class,
+        CachedWeatherEntity::class,
+        CommandSequenceEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AlyaDatabase : RoomDatabase() {
@@ -50,6 +56,8 @@ abstract class AlyaDatabase : RoomDatabase() {
     abstract fun offlineCommandLogDao(): OfflineCommandLogDao
     abstract fun customWakeWordDao(): CustomWakeWordDao
     abstract fun callSessionDao(): CallSessionDao
+    abstract fun weatherDao(): WeatherDao
+    abstract fun commandSequenceDao(): CommandSequenceDao
 
     companion object {
         @Volatile

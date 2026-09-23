@@ -39,6 +39,12 @@ object DeviceActionPlanner {
         val lower = trimmed.lowercase(Locale.ROOT)
         if (lower.isBlank()) return null
 
+        // 0. High-Capacity Multi-Language Semantic Command Engine (100,000+ variations across 12+ languages)
+        val semanticMatch = com.example.util.MultiLanguageSemanticCommandEngine.resolveSemanticCommand(rawInput)
+        if (semanticMatch != null) {
+            return semanticMatch
+        }
+
         // 1. Settings Intents (Higher precedence than generic app or connectivity toggle)
         // e.g. "open wifi settings", "wi-fi settings", "open bluetooth settings", "open notification settings"
         if (isSettingsIntent(lower)) {

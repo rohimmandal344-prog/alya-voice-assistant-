@@ -704,6 +704,9 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
 
+    val isHardwareRecording: StateFlow<Boolean> = app.audioCaptureManager.isCaptureActive
+    val isSpeechDetected: StateFlow<Boolean> = app.audioCaptureManager.isSpeechDetected
+
     private val _isVoiceStandby = MutableStateFlow(false)
     val isVoiceStandby: StateFlow<Boolean> = _isVoiceStandby.asStateFlow()
 
@@ -1132,9 +1135,9 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                         // When assistant is not speaking, stream all user audio immediately
                         geminiLiveClient.sendAudioFrame(pcmBuffer, readSize)
                     } else {
-                        // When assistant is speaking, only forward audio if user intentionally speaks loudly (>= 58 dB RMS)
+                        // When assistant is speaking, forward audio if user speaks (>= 25 dB RMS) for smooth barge-in
                         val timeSincePlaybackStart = now - lastPlaybackStartTime
-                        if (timeSincePlaybackStart > 350L && rmsDb >= 58.0f) {
+                        if (timeSincePlaybackStart > 200L && rmsDb >= 25.0f) {
                             Log.i("AlyaViewModel", "Barge-in detected during assistant speech ($rmsDb dB).")
                             pcmAudioPlayer.stopAndFlushForBargeIn()
                             ttsManager.stop()
@@ -1837,6 +1840,10 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
     fun startVoiceMode() {
         clearSubtitles()
         com.example.voice.error.VoiceErrorRegistry.instance.registerNetworkCallback(app)
+        
+        // Request dedicated CALL_ASSISTANT audio session to claim exclusive microphone ownership
+        com.example.audio.AudioSessionManager.requestSession(com.example.audio.AudioSessionType.CALL_ASSISTANT)
+        
         wakeWordManager.isSuppressed = true
         wakeWordManager.stop()
         _isVoiceMode.value = true
@@ -1854,9 +1861,6 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
 
         val soundEffects = repository.preferences.soundEffectsEnabled.value
         soundEffectManager.play(com.example.voice.SoundEffectManager.SoundType.VOICE_START, enabled = soundEffects)
-
-        // Keep Alya active in background
-        com.example.service.WakeWordService.start(app)
 
         val activeLang = _currentLanguageLocale.value.ifBlank { repository.preferences.voiceLanguage.value }
         val greetingText = getLiveConversationGreeting(activeLang)
@@ -2124,6 +2128,9 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         _isVoiceStandby.value = false
         wakeWordManager.isSuppressed = false
         _liveAssistantTranscript.value = ""
+
+        // Release CALL_ASSISTANT audio session
+        com.example.audio.AudioSessionManager.releaseSession(com.example.audio.AudioSessionType.CALL_ASSISTANT)
 
         // Cleanly disconnect Gemini Live WebSocket and PCM AudioTrack Player without pops
         geminiLiveClient.disconnect()

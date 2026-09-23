@@ -124,12 +124,26 @@ class WeatherManager(private val context: Context) {
                     speechText = speechText
                 )
 
+                // Sync to Room Database Persistent Storage
+                com.example.data.sync.RoomDataSyncManager.getInstance(context).syncWeatherReport(
+                    query = targetLocation,
+                    report = report,
+                    lat = lat,
+                    lon = lon
+                )
                 saveWeatherToCache(targetLocation, report)
 
                 Result.success(report)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get live weather: ${e.message}. Attempting offline cache fallback.", e)
+            Log.e(TAG, "Failed to get live weather: ${e.message}. Attempting offline Room cache fallback.", e)
+            
+            // Check Room Database first for last known valid state
+            val roomCached = com.example.data.sync.RoomDataSyncManager.getInstance(context).getLastKnownWeather(targetLocation)
+            if (roomCached != null) {
+                return@withContext Result.success(roomCached)
+            }
+
             val cached = getCachedWeatherReport(targetLocation)
             if (cached != null) {
                 return@withContext cached

@@ -345,8 +345,11 @@ class WakeWordService : Service(), LifecycleOwner {
         val app = application as? AlyaApplication
         val isActivated = app?.preferencesManager?.isWakeUpActivated?.value ?: true
         val isCallActive = com.example.service.TelephonyService.isCallActive || isAudioModeInCall()
-        val isLiveVoiceActive = app?.sessionManager?.sessionState?.value != com.example.util.SessionState.IDLE &&
-                                app?.sessionManager?.sessionState?.value != com.example.util.SessionState.STOPPED
+        val isCallAssistantActive = com.example.audio.AudioSessionManager.getActiveSession() == com.example.audio.AudioSessionType.CALL_ASSISTANT ||
+                                     com.example.audio.AudioSessionManager.getActiveSession() == com.example.audio.AudioSessionType.SPEECH_RECOGNITION
+        val isLiveVoiceActive = (app?.sessionManager?.sessionState?.value != com.example.util.SessionState.IDLE &&
+                                app?.sessionManager?.sessionState?.value != com.example.util.SessionState.STOPPED) ||
+                                isCallAssistantActive
         val isOverlayShowing = WakeUpPopup.isShowing
         val isSpeechListening = app?.speechManager?.isListening?.value ?: false
         val isTtsSpeaking = app?.ttsManager?.isSpeaking?.value ?: false
@@ -586,6 +589,13 @@ class WakeWordService : Service(), LifecycleOwner {
         // Start listening with high-priority audio stream
         serviceScope.launch {
             try {
+                val activeSession = com.example.audio.AudioSessionManager.getActiveSession()
+                if (activeSession == com.example.audio.AudioSessionType.CALL_ASSISTANT || activeSession == com.example.audio.AudioSessionType.SPEECH_RECOGNITION) {
+                    Log.i(TAG, "Live Voice or Assistant session active ($activeSession). Yielding microphone from WakeWordService.")
+                    wakeWordManager?.isSuppressed = true
+                    wakeWordManager?.stop()
+                    return@launch
+                }
                 val kw = (application as? AlyaApplication)?.preferencesManager?.selectedWakeWord?.value ?: "ALYA"
                 wakeWordManager?.setBatterySaverEnabled(isBatterySaver)
                 wakeWordManager?.start(kw, sensitivity = if (isBatterySaver) 0.5f else 0.6f)

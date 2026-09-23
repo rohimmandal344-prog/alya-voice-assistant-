@@ -70,7 +70,9 @@ fun VoiceModeScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isListening by viewModel.speechManager.isListening.collectAsState()
+    val isHardwareRecording by viewModel.isHardwareRecording.collectAsState()
+    val isSpeechDetected by viewModel.isSpeechDetected.collectAsState()
+    val isListeningRecognizer by viewModel.speechManager.isListening.collectAsState()
     val isSpeakingPcm by viewModel.pcmAudioPlayer.isPlaybackActive.collectAsState()
     val isSpeakingTts by viewModel.ttsManager.isSpeaking.collectAsState()
     val isSpeaking = isSpeakingPcm || isSpeakingTts
@@ -84,11 +86,12 @@ fun VoiceModeScreen(
     val isSpeakerOn by viewModel.audioDeviceManager.isSpeakerOn.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val callQuality by viewModel.callConnectionQuality.collectAsState()
-    val isStandby by viewModel.isVoiceStandby.collectAsState()
 
     val isLiveStreaming = geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Streaming ||
                           geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Connected
-    val isMicActive = !isMuted && (isListening || isLiveStreaming)
+    
+    // Direct binding to hardware MediaRecorder / AudioRecord capture state
+    val isMicActive = !isMuted && (isHardwareRecording || isListeningRecognizer || isLiveStreaming)
 
     val partialText by viewModel.speechManager.partialResult.collectAsState()
     val speechError by viewModel.speechManager.speechError.collectAsState()
@@ -99,11 +102,11 @@ fun VoiceModeScreen(
             when {
                 isSpeaking && isMuted -> "ALYA IS SPEAKING (MIC MUTED)"
                 isSpeaking -> "ALYA IS SPEAKING..."
-                isThinking -> "ALYA IS THINKING..."
+                isThinking -> "ALYA IS PROCESSING..."
                 isMuted -> "MICROPHONE IS MUTED"
-                isStandby -> "ALYA IS READY (TAP ORB TO TALK)"
+                isMicActive && isSpeechDetected -> "ALYA IS LISTENING (VOICE DETECTED)..."
                 isMicActive -> "ALYA IS LISTENING..."
-                else -> "ALYA IS LISTENING..."
+                else -> "ALYA IS READY..."
             }
         }
     }
@@ -111,12 +114,12 @@ fun VoiceModeScreen(
     val statusBadgeText by remember {
         derivedStateOf {
             when {
-                isSpeaking -> "Speaking (HD Audio)"
-                geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Streaming -> if (isMuted) "Live (Muted)" else "Live Audio"
-                geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Connected -> if (isMuted) "Live (Muted)" else "Live Connected"
-                isMicActive -> "Live Mic"
-                isMuted -> "Muted"
-                else -> "Live (Ultra Low Latency)"
+                isSpeaking -> "Speaking (HD Voice)"
+                isThinking -> "Processing..."
+                isMuted -> "Mic Muted"
+                isMicActive && isSpeechDetected -> "Listening (Active)"
+                isMicActive -> "Listening (Live Mic)"
+                else -> "Live Conversation"
             }
         }
     }
@@ -283,12 +286,16 @@ fun VoiceModeScreen(
                 modifier = Modifier
                     .clip(CircleShape)
                     .clickable {
-                        viewModel.exitStandbyMode()
+                        if (isSpeaking) {
+                            viewModel.stopSpeaking()
+                        } else {
+                            viewModel.toggleMute()
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
                 VoiceOrb(
-                    isListening = isMicActive,
+                    isListening = isMicActive && !isSpeaking && !isThinking,
                     isSpeaking = isSpeaking,
                     isThinking = isThinking,
                     rmsProvider = {

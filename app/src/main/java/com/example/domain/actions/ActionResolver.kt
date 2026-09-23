@@ -11,6 +11,10 @@ import com.example.domain.tools.ActionResultStatus
 import com.example.domain.tools.ToolExecutionResult
 import com.example.util.diagnostics.DiagnosticLogManager
 import com.example.util.diagnostics.DiagnosticStage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 enum class SystemFailureCode {
@@ -130,6 +134,8 @@ class ActionResolver(private val context: Context) {
     private val commandRegistry = CommandRegistry(context)
     private val diagLog = DiagnosticLogManager.instance
     private val offlineLogger = com.example.util.diagnostics.OfflineCommandLogger.getInstance(context)
+    private val roomSyncManager = com.example.data.sync.RoomDataSyncManager.getInstance(context)
+    private val resolverScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun resolveAndExecute(command: String): ToolExecutionResult {
         val trimmed = command.trim()
@@ -142,22 +148,69 @@ class ActionResolver(private val context: Context) {
             if (segments.size > 1) {
                 Log.i(TAG, "[ACTION_RESOLVER] Multi-command detected. Splitting into ${segments.size} segments.")
                 
+                val sequenceId = java.util.UUID.randomUUID().toString()
+                val stepMaps = segments.mapIndexed { idx, seg ->
+                    mapOf<String, Any?>(
+                        "stepIndex" to idx,
+                        "command" to seg,
+                        "status" to "PENDING"
+                    )
+                }
+
+                resolverScope.launch {
+                    roomSyncManager.saveCommandSequence(
+                        id = sequenceId,
+                        title = "Multi-step command: ${segments.firstOrNull() ?: "Routine"}",
+                        originalPrompt = trimmed,
+                        steps = stepMaps,
+                        isOfflineExecutable = true
+                    )
+                }
+
                 var lastResult: ToolExecutionResult? = null
                 val combinedOutput = StringBuilder()
+                var currentStep = 0
                 
                 for (segment in segments) {
                     val result = internalResolveAndExecute(segment)
                     lastResult = result
                     combinedOutput.append(result.message).append(" ")
                     
+                    val stepStatus = if (result.success) "STEP_COMPLETED" else "STEP_FAILED"
+                    val stepIdx = currentStep
+                    val lastMsg = result.message
+                    
+                    resolverScope.launch {
+                        roomSyncManager.updateCommandSequenceStep(
+                            sequenceId = sequenceId,
+                            stepIndex = stepIdx,
+                            status = stepStatus,
+                            stateSnapshot = mapOf("lastExecutedSegment" to segment, "stepResult" to result.success),
+                            errorMessage = if (!result.success) lastMsg else null
+                        )
+                    }
+
                     if (!result.success) {
                         Log.w(TAG, "[ACTION_RESOLVER] Segment '$segment' failed: ${result.message}")
                     }
                     
+                    currentStep++
                     try { Thread.sleep(350L) } catch (e: Exception) { android.util.Log.e("Alya", "Exception handled", e) }
                 }
                 
                 val finalResult = lastResult ?: ToolExecutionResult(false, "No commands found.")
+                val overallSuccess = segments.isNotEmpty() && (lastResult?.success == true)
+                val finalStatus = if (overallSuccess) "COMPLETED" else "PARTIALLY_COMPLETED"
+
+                resolverScope.launch {
+                    roomSyncManager.updateCommandSequenceStep(
+                        sequenceId = sequenceId,
+                        stepIndex = segments.size - 1,
+                        status = finalStatus,
+                        stateSnapshot = mapOf("finalCombinedMessage" to combinedOutput.toString().trim(), "isComplete" to true)
+                    )
+                }
+
                 val resultWithCombinedMessage = finalResult.copy(
                     message = combinedOutput.toString().trim()
                 )

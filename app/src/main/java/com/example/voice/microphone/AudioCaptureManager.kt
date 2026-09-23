@@ -31,8 +31,9 @@ class AudioCaptureManager private constructor(private val context: Context) {
      */
     val captureError: StateFlow<VoiceError?> = _captureError.asStateFlow()
 
-    private val _isCaptureActive = MutableStateFlow(false)
-    val isCaptureActive: StateFlow<Boolean> = _isCaptureActive.asStateFlow()
+    val isCaptureActive: StateFlow<Boolean> = microphoneManager.isRecordingActive
+    val isSpeechDetected: StateFlow<Boolean> = microphoneManager.isSpeechDetected
+    val micState: StateFlow<MicState> = microphoneManager.micState
 
     /**
      * Callback for specific error events that require immediate UI response.
@@ -44,7 +45,6 @@ class AudioCaptureManager private constructor(private val context: Context) {
     init {
         // Observe MicrophoneManager's internal states
         microphoneManager.onMicStateChanged = { state ->
-            _isCaptureActive.value = state != MicState.DORMANT
             Log.d(TAG, "Mic state changed: $state")
         }
 
@@ -79,7 +79,6 @@ class AudioCaptureManager private constructor(private val context: Context) {
         Log.i(TAG, "Stopping capture and releasing microphone.")
         com.example.audio.AlyaAudioManager.getInstance(context).unregisterMicrophoneHolder("AudioCaptureManager")
         microphoneManager.setDormant()
-        _isCaptureActive.value = false
     }
 
     /**

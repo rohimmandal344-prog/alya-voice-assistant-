@@ -43,6 +43,9 @@ class MicrophoneManager(private val context: Context) {
     private val _micState = MutableStateFlow(MicState.DORMANT)
     val micState: StateFlow<MicState> = _micState.asStateFlow()
 
+    private val _isRecordingActive = MutableStateFlow(false)
+    val isRecordingActive: StateFlow<Boolean> = _isRecordingActive.asStateFlow()
+
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var recordingJob: Job? = null
     private val isCapturing = AtomicBoolean(false)
@@ -155,7 +158,8 @@ class MicrophoneManager(private val context: Context) {
             audioRecord?.let { com.example.audio.AudioLifecycleManager.registerAudioRecord(it) }
             audioRecord?.startRecording()
             isCapturing.set(true)
-            Log.i(TAG, "[MIC_MANAGER] Hardware audio recording started with AEC/AGC/NS enabled.")
+            _isRecordingActive.value = audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING
+            Log.i(TAG, "[MIC_MANAGER] Hardware audio recording started with AEC/AGC/NS enabled (recording=${_isRecordingActive.value}).")
 
             recordingJob = scope.launch {
                 val frameBuffer = ShortArray(320) // 20ms chunks for ultra-low latency streaming
@@ -175,7 +179,7 @@ class MicrophoneManager(private val context: Context) {
                         val audioLockManager = com.example.voice.audio.AudioLockManager.getInstance(context)
 
                         // Check if mic input buffer should be muted explicitly or by the Audio Lock
-                        if (isMuted.get() || audioLockManager.shouldMuteInputBuffer(rmsDb, bargeInThresholdDb = 55.0f)) {
+                        if (isMuted.get() || audioLockManager.shouldMuteInputBuffer(rmsDb, bargeInThresholdDb = 28.0f)) {
                             java.util.Arrays.fill(frameBuffer, 0.toShort())
                             _isSpeechDetected.value = false
                             continue
@@ -258,6 +262,7 @@ class MicrophoneManager(private val context: Context) {
     @Synchronized
     private fun stopCapture() {
         isCapturing.set(false)
+        _isRecordingActive.value = false
         recordingJob?.cancel()
         recordingJob = null
 

@@ -373,6 +373,16 @@ class AuthManager(private val context: Context) {
         }
     }
 
+    fun updateDisplayName(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        val profile = _currentUser.value ?: UserProfile(displayName = trimmed, isGuest = true)
+        val updated = profile.copy(displayName = trimmed)
+        saveProfileToPrefs(updated)
+        _currentUser.value = updated
+        _authState.value = if (updated.isGuest) AuthState.GuestSession(updated) else AuthState.Authenticated(updated)
+    }
+
     fun updateSecuritySettings(
         enableAppLock: Boolean,
         newPin: String? = null,
