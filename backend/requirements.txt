@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+edge-tts
+groq
+python-dotenv

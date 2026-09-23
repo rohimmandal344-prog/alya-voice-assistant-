@@ -17,6 +17,7 @@ import com.example.voice.AudioDeviceManager
 import com.example.voice.SpeechRecognitionManager
 import com.example.voice.TextToSpeechManager
 import com.example.voice.wakeword.WakeWordKeyword
+import com.example.data.bridge.AlyaBridgeWebSocketClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,6 +81,10 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
     val cacheManager = com.example.data.cache.AppCacheManager(app)
     val sessionManager = app.sessionManager
     val conversationalFeedbackModule = com.example.voice.audio.ConversationalFeedbackModule(app, ttsManager, repository.preferences)
+
+    // Bridge Mode (Python Server + EdgeTTS) for ultra-low latency & natural warm human voice
+    val alyaBridgeClient = AlyaBridgeWebSocketClient(app)
+    val isBridgeModeEnabled: StateFlow<Boolean> = repository.preferences.bridgeModeEnabled
 
     // Gemini Multimodal Live API & PCM Streaming Audio Engine
     val geminiLiveClient = com.example.data.ai.GeminiLiveWebSocketClient()
@@ -171,6 +176,22 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                 wakeWordManager.start(kw, sens)
             } else {
                 wakeWordManager.stop()
+            }
+        }
+    }
+
+    fun toggleBridgeMode(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.preferences.setBridgeModeEnabled(enabled)
+            if (enabled) {
+                val serverUrl = repository.preferences.bridgeServerUrl.value.ifBlank { "ws://10.0.2.2:8000/ws/chat" }
+                alyaBridgeClient.connect(serverUrl)
+                // If we're in voice mode, stop Gemini Live to avoid conflicts
+                if (_isVoiceMode.value) {
+                    geminiLiveClient.disconnect()
+                }
+            } else {
+                alyaBridgeClient.disconnect()
             }
         }
     }
@@ -725,6 +746,19 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun updateAssistantSubtitle(text: String) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _subtitles.update { current ->
+                val list = current.toMutableList()
+                list.add(SubtitleLine(speaker = "alya", text = text, isInterim = false))
+                if (list.size > 50) {
+                    list.removeAt(0)
+                }
+                list
+            }
+        }
+    }
+
     private fun updateAlyaSubtitle(text: String, isInterim: Boolean = false) {
         val cleanText = com.example.util.SystemThoughtFilter.cleanForDisplay(text)
         viewModelScope.launch(Dispatchers.Default) {
@@ -759,6 +793,20 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        // Bridge Mode State Synchronization
+        viewModelScope.launch {
+            repository.preferences.bridgeModeEnabled.collect { enabled ->
+                if (enabled) {
+                    val url = repository.preferences.bridgeServerUrl.value
+                    if (!alyaBridgeClient.isConnected.value) {
+                        alyaBridgeClient.connect(url)
+                    }
+                } else {
+                    alyaBridgeClient.disconnect()
+                }
+            }
+        }
+
         checkForUpdatesOnLaunch()
 
         // Auto-resume live voice session on network reconnect
@@ -838,6 +886,18 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         // Sync contacts to memory
         viewModelScope.launch {
             contactManager.syncContactsToMemory(repository.database.memoryDao())
+        }
+
+        // Bridge Mode AI Response Collection
+        viewModelScope.launch {
+            alyaBridgeClient.incomingText.collect { text ->
+                withContext(Dispatchers.Main) {
+                    _isThinking.value = false
+                    updateAssistantSubtitle(text)
+                    // If we're in bridge mode, the server already handles audio playback via URL + ExoPlayer
+                    // So we don't need to call local speakResponse here.
+                }
+            }
         }
 
         // Collect voice language preferences and synchronize with state/speech managers dynamically
@@ -1455,6 +1515,13 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleSpokenInput(spokenText: String, languageHint: String? = null) {
+        if (isBridgeModeEnabled.value) {
+            _isThinking.value = true
+            alyaBridgeClient.sendText(spokenText)
+            updateUserSubtitle(spokenText, isInterim = false)
+            return
+        }
+
         val lower = spokenText.lowercase().trim()
         val now = System.currentTimeMillis()
 
@@ -1727,11 +1794,11 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                 val personaToUse = if (prefPersona.isBlank() || prefPersona == "ALYA_ANIME_RUSSIAN") "KORE" else prefPersona
                 val geminiVoice = when (personaToUse.uppercase()) {
                     "KORE" -> "Kore"
-                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION" -> "Kore"
+                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION", "WARM_SOFT", "ORIGINAL_HUMAN" -> "Kore"
                     "CRISP_CONFIDENT", "EXECUTIVE", "ALYA_EXECUTIVE_CRISP" -> "Aoede"
                     "LIVELY_PLAYFUL", "ENERGETIC" -> "Aoede"
                     "SWEET_COMPANION", "ANIME_SWEET" -> "Kore"
-                    else -> "Aoede"
+                    else -> "Kore"
                 }
 
                 val systemPrompt = com.example.data.ai.AiPersonality.buildSystemPrompt(
@@ -1791,11 +1858,11 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                 val personaToUse = if (prefPersona.isBlank() || prefPersona == "ALYA_ANIME_RUSSIAN") "KORE" else prefPersona
                 val geminiVoice = when (personaToUse.uppercase()) {
                     "KORE" -> "Kore"
-                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION" -> "Kore"
+                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION", "WARM_SOFT", "ORIGINAL_HUMAN" -> "Kore"
                     "CRISP_CONFIDENT", "EXECUTIVE", "ALYA_EXECUTIVE_CRISP" -> "Aoede"
                     "LIVELY_PLAYFUL", "ENERGETIC" -> "Aoede"
                     "SWEET_COMPANION", "ANIME_SWEET" -> "Kore"
-                    else -> "Aoede"
+                    else -> "Kore"
                 }
 
                 val systemPrompt = com.example.data.ai.AiPersonality.buildSystemPrompt(

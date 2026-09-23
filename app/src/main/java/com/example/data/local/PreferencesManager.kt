@@ -122,6 +122,22 @@ class PreferencesManager(context: Context) {
     )
     val updateCheckUrl: StateFlow<String> = _updateCheckUrl.asStateFlow()
 
+    private val _bridgeServerUrl = MutableStateFlow(prefs.getString(KEY_BRIDGE_SERVER_URL, "ws://10.0.2.2:8000/ws/chat") ?: "ws://10.0.2.2:8000/ws/chat")
+    val bridgeServerUrl: StateFlow<String> = _bridgeServerUrl.asStateFlow()
+
+    private val _bridgeModeEnabled = MutableStateFlow(prefs.getBoolean(KEY_BRIDGE_MODE_ENABLED, false))
+    val bridgeModeEnabled: StateFlow<Boolean> = _bridgeModeEnabled.asStateFlow()
+
+    fun setBridgeServerUrl(url: String) {
+        prefs.edit().putString(KEY_BRIDGE_SERVER_URL, url).apply()
+        _bridgeServerUrl.value = url
+    }
+
+    fun setBridgeModeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BRIDGE_MODE_ENABLED, enabled).apply()
+        _bridgeModeEnabled.value = enabled
+    }
+
     fun setUpdateCheckUrl(url: String) {
         prefs.edit().putString(KEY_UPDATE_CHECK_URL, url).apply()
         _updateCheckUrl.value = url
@@ -359,6 +375,8 @@ class PreferencesManager(context: Context) {
         _updateCheckUrl.value = prefs.getString(KEY_UPDATE_CHECK_URL, DEFAULT_UPDATE_URL)?.let {
             if (it.contains("daily-walking-guide-apk") || it.isBlank()) DEFAULT_UPDATE_URL else it
         } ?: DEFAULT_UPDATE_URL
+        _bridgeServerUrl.value = prefs.getString(KEY_BRIDGE_SERVER_URL, "ws://10.0.2.2:8000/ws/chat") ?: "ws://10.0.2.2:8000/ws/chat"
+        _bridgeModeEnabled.value = prefs.getBoolean(KEY_BRIDGE_MODE_ENABLED, false)
         _isContinuousConversationEnabled.value = prefs.getBoolean(KEY_CONTINUOUS_CONVO, true)
         _onlyOwnerVoiceWakes.value = prefs.getBoolean(KEY_ONLY_OWNER_VOICE_WAKES, true)
         _pauseDuringCallsAndRecording.value = prefs.getBoolean(KEY_PAUSE_DURING_CALLS, true)
@@ -402,6 +420,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_RESPONSE_STYLE = "key_response_style"
         private const val KEY_SILENCE_TIMEOUT = "key_silence_timeout"
         private const val KEY_UPDATE_CHECK_URL = "key_update_check_url"
+        private const val KEY_BRIDGE_SERVER_URL = "key_bridge_server_url"
+        private const val KEY_BRIDGE_MODE_ENABLED = "key_bridge_mode_enabled"
         private const val KEY_LAST_SEEN_VERSION = "key_last_seen_version"
         private const val KEY_CONTINUOUS_CONVO = "key_continuous_convo"
         private const val KEY_ONLY_OWNER_VOICE_WAKES = "key_only_owner_voice_wakes"

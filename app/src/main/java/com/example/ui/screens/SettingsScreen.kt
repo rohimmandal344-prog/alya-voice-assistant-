@@ -409,6 +409,59 @@ fun SettingsScreen(
                     }
                 }
 
+                // Hybrid Voice Bridge (Python Server + EdgeTTS) for warm, soft human voice
+                val isBridgeModeEnabled by preferencesManager.bridgeModeEnabled.collectAsState()
+                val bridgeServerUrl by preferencesManager.bridgeServerUrl.collectAsState()
+                var bridgeUrlText by remember { mutableStateOf(bridgeServerUrl) }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    Text("Alya Hybrid Voice Bridge", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                }
+                                Text("Uses local Python server + EdgeTTS for warm, soft human-like Hindi/English voice.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                            }
+                            Switch(
+                                checked = isBridgeModeEnabled,
+                                onCheckedChange = { preferencesManager.setBridgeModeEnabled(it) },
+                                modifier = Modifier.testTag("bridge_mode_switch")
+                            )
+                        }
+                        
+                        if (isBridgeModeEnabled) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = bridgeUrlText,
+                                onValueChange = { bridgeUrlText = it },
+                                label = { Text("Python Bridge Server URL") },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("ws://10.0.2.2:8000/ws/chat") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp),
+                                textStyle = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { preferencesManager.setBridgeServerUrl(bridgeUrlText) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Apply Server Configuration")
+                            }
+                        }
+                    }
+                }
+
                 // Wake-up Assistant Name Input Field (Custom Wake Word)
                 val selectedWakeWord by preferencesManager.selectedWakeWord.collectAsState()
                 OutlinedTextField(

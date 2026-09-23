@@ -44,8 +44,8 @@ class GeminiLiveWebSocketClient {
     companion object {
         private const val TAG = "GeminiLiveClient"
         const val LIVE_MODEL = "models/gemini-2.0-flash-exp"
-        private const val WS_BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent"
-        private const val DEFAULT_VOICE = "Aoede" // Ultra-realistic soft neural female voice
+        private const val WS_BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        private const val DEFAULT_VOICE = "Kore" // Soft Melodic Human Female Voice (Alya Persona)
     }
 
     // Dedicated single-threaded dispatcher strictly for heartbeat and connection lifecycle to prevent thread starvation

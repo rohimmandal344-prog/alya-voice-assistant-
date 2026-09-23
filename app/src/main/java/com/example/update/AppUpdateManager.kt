@@ -59,11 +59,6 @@ class AppUpdateManager(private val context: Context) {
      * Retrieves the installed app version code.
      */
     fun getCurrentVersionCode(): Long {
-        val sharedPrefs = context.getSharedPreferences("alya_update_prefs", Context.MODE_PRIVATE)
-        val patchedCode = sharedPrefs.getLong("patched_version_code", -1L)
-        if (patchedCode != -1L) {
-            return patchedCode
-        }
         return try {
             val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
@@ -86,11 +81,6 @@ class AppUpdateManager(private val context: Context) {
      * Retrieves the installed app version name.
      */
     fun getCurrentVersionName(): String {
-        val sharedPrefs = context.getSharedPreferences("alya_update_prefs", Context.MODE_PRIVATE)
-        val patchedVersion = sharedPrefs.getString("patched_version_name", null)
-        if (patchedVersion != null) {
-            return patchedVersion
-        }
         return try {
             val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
@@ -264,20 +254,20 @@ class AppUpdateManager(private val context: Context) {
     }
 
     private fun getOfficialReleaseManifest(currentCode: Long, currentName: String): AppUpdateInfo {
-        // Official release target (Alya Assistant v6.0.0+)
-        val targetCode = maxOf(currentCode, 603L)
-        val targetName = if (currentName.startsWith("6.")) currentName else "6.0.0"
+        // Official release target (Alya Assistant v1.1.5)
+        val targetCode = 115L
+        val targetName = "1.1.5"
         val isAvailable = targetCode > currentCode
 
         return AppUpdateInfo(
             versionCode = targetCode,
             versionName = targetName,
             apkUrl = "https://github.com/alya-assistant/alya/releases/download/v$targetName/alya-assistant-v$targetName.apk",
-            releaseNotes = "• Alya Assistant v$targetName Release Highlights:\n• Complete system expansion: Ultra-low latency Gemini Live continuous conversation engine.\n• 100% Pure Female Voice & acoustic tone optimization with natural timbre and breath pacing.\n• Real Android device controls: Wi-Fi, Bluetooth, volume, alarms, reminders, timers, calls, and app automation.\n• Offline speech recognition & local TTS fallback with phonetic Hinglish/Banglish support.\n• Zero-lag background wake-word detection with voice-activity biometric verification.",
+            releaseNotes = "• Alya Assistant v$targetName Release Highlights:\n• Fixed Live Conversation: Gemini Multimodal Live API stability improvements with v1beta endpoint.\n• Warm & Soft Female Voice: Optimized audio persona (Kore) with natural human-like warm timbre.\n• Enhanced Barge-in: Smoother interruption handling during continuous live dialogue.\n• UI Polish: Latest branding and versioning synchronization.",
             isUpdateAvailable = isAvailable,
             currentVersionCode = currentCode,
             currentVersionName = currentName,
-            fileSize = 48000000L
+            fileSize = 48500000L
         )
     }
 
@@ -490,13 +480,6 @@ class AppUpdateManager(private val context: Context) {
                     return false
                 }
             }
-
-            // Save patched version information to simulate/reflect successful update state post-installation
-            val sharedPrefs = context.getSharedPreferences("alya_update_prefs", Context.MODE_PRIVATE)
-            sharedPrefs.edit()
-                .putString("patched_version_name", "Version 2.5.2 (Latest)")
-                .putLong("patched_version_code", 27L)
-                .apply()
 
             // Clear cache to ensure old UI assets and cached states don't conflict with new release
             clearAppCache()

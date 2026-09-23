@@ -39,10 +39,10 @@ abstract class GitVersionNameValueSource : ValueSource<String, ValueSourceParame
       if (tag.isNotBlank()) {
         if (tag.startsWith("v")) tag.substring(1) else tag
       } else {
-        "6.0.0-stable"
+        "1.1.5-stable"
       }
     } catch (e: Exception) {
-      "6.0.0-stable"
+      "1.1.5-stable"
     }
   }
 }
@@ -173,6 +173,9 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.ui)
+  implementation(libs.androidx.media3.common)
   implementation("xyz.rementia:openwakeword:0.1.3")
   implementation("com.alphacephei:vosk-android:0.3.47")
   testImplementation(libs.androidx.compose.ui.test.junit4)
