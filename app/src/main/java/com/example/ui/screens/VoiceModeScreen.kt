@@ -101,9 +101,9 @@ fun VoiceModeScreen(
                 isSpeaking -> "ALYA IS SPEAKING..."
                 isThinking -> "ALYA IS THINKING..."
                 isMuted -> "MICROPHONE IS MUTED"
-                isStandby -> "SAY 'ALYA' TO SPEAK (BATTERY SAVER)"
+                isStandby -> "ALYA IS READY (TAP ORB TO TALK)"
                 isMicActive -> "ALYA IS LISTENING..."
-                else -> "ALYA IS READY"
+                else -> "ALYA IS LISTENING..."
             }
         }
     }
@@ -116,7 +116,7 @@ fun VoiceModeScreen(
                 geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Connected -> if (isMuted) "Live (Muted)" else "Live Connected"
                 isMicActive -> "Live Mic"
                 isMuted -> "Muted"
-                else -> "Standby"
+                else -> "Live (Ultra Low Latency)"
             }
         }
     }
@@ -281,7 +281,10 @@ fun VoiceModeScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .clip(CircleShape),
+                    .clip(CircleShape)
+                    .clickable {
+                        viewModel.exitStandbyMode()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 VoiceOrb(

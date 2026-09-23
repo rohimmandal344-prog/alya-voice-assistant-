@@ -361,6 +361,13 @@ class AlyaAccessibilityService : AccessibilityService() {
     }
 
     private fun handleAssistantCommand(command: String, args: Map<String, String>?) {
+        val currentFg = com.example.domain.actions.DeviceContextManager.getInstance(applicationContext).getCurrentForegroundPackage() ?: ""
+        if (isPaymentOrBankingApp(currentFg)) {
+            Log.w(TAG, "Security & Privacy Guard Active: Blocked command '$command' on secure payment screen ($currentFg)")
+            showHUD("Safety Guard: Automation paused on payment screen")
+            return
+        }
+
         val normalizedCmd = command.lowercase().trim()
         Log.i(TAG, "Executing accessibility command: $normalizedCmd")
         showHUD("Executing $normalizedCmd...")

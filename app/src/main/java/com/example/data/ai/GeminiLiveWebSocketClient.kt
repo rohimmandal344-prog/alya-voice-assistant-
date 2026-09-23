@@ -43,7 +43,7 @@ class GeminiLiveWebSocketClient {
 
     companion object {
         private const val TAG = "GeminiLiveClient"
-        const val LIVE_MODEL = "models/gemini-2.0-flash-exp"
+        const val LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
         private const val WS_BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
         private const val DEFAULT_VOICE = "Kore" // Soft Melodic Human Female Voice (Alya Persona)
     }

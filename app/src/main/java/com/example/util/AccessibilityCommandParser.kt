@@ -11,6 +11,12 @@ object AccessibilityCommandParser {
     fun tryHandleDirectCommand(spokenText: String): Boolean {
         val lower = spokenText.lowercase().trim()
         
+        // 0. Check MultiLanguage Command Registry first
+        val resolved = MultiLanguageCommandRegistry.resolveSpokenCommand(lower)
+        if (resolved != null) {
+            return AlyaAccessibilityService.executeCommand(resolved.first, resolved.second)
+        }
+        
         // 1. Navigation & Basic Actions
         if (lower == "go back" || lower == "back" || lower == "piche jao" || lower == "piche" || lower == "wapas" || lower == "wapas jao") {
             return AlyaAccessibilityService.executeCommand("go_back")

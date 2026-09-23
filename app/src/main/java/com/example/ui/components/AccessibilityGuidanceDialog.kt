@@ -53,16 +53,73 @@ fun AccessibilityGuidanceDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "Alya uses Accessibility to perform hands-free actions like opening apps, clicking visible screen controls, scrolling Reels, and auto-connecting Wi-Fi.",
+                    text = "Alya Accessibility Service gives you full hands-free voice control across your entire device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                 if (isAndroid13Plus && status == AccessibilityPermissionStatus.RESTRICTED_BY_ANDROID_13_PLUS) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Permissions & Powers Active:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "• Perform Gestures (Tap, Scroll, Double-Tap, Long-Press)\n" +
+                                    "• Read Interactive Screen Controls & Buttons\n" +
+                                    "• Auto-Control System Toggles (Wi-Fi, Bluetooth, Flashlight)\n" +
+                                    "• Execute System Keys (Home, Back, Recents, Notifications)\n" +
+                                    "• Hands-Free Phone Calls (Answer / End Incoming Calls)\n" +
+                                    "• App Launching & Voice Automation (WhatsApp, YouTube, Camera)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "🔒 Banking & Privacy Safety Guard",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "1. Financial Safety: Automated actions are strictly BLOCKED on Google Pay, PhonePe, Paytm, BHIM, and Banking apps.\n" +
+                                    "2. Manual Touch Respect: When you manually operate the phone or make manual calls, Alya never interferes.\n" +
+                                    "3. Private & Secure: No screen text or private credentials are ever stored or uploaded.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                if (isAndroid13Plus && status == AccessibilityPermissionStatus.RESTRICTED_BY_ANDROID_13_PLUS) {
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
@@ -90,28 +147,15 @@ fun AccessibilityGuidanceDialog(
                                 )
                             }
                             Text(
-                                text = "Android 13+ me sideloaded apps ke liye safety feature hai. Isko thik karne ke liye niche diye steps follow karein:",
+                                text = "1. Tap 'App Info (Allow Restricted Settings)' below.\n" +
+                                        "2. Tap 3 dots (⋮) in top-right corner -> 'Allow Restricted Settings'.\n" +
+                                        "3. Open Accessibility Settings and enable Alya Service.",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "1. Niche diye 'App Info (Allow Restricted Settings)' button ko dabayein.\n" +
-                                        "2. App Info page khulega, wahan top-right corner me teen dots (⋮) par tap karein.\n" +
-                                        "3. 'Allow Restricted Settings' (या प्रतिबंधित सेटिंग्स की अनुमति दें) par click karein aur authenticate karein.\n" +
-                                        "4. Waapas is app me aakar 'Open Accessibility Settings' dabayein aur Alya ko enable karein.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
-
-                Text(
-                    text = "Privacy Guarantee: Alya never collects or uploads your screen text or private data.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
-                )
             }
         },
         confirmButton = {

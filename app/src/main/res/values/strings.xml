@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Alya Assistant</string>
-    <string name="accessibility_service_description">Allow Alya to perform gestures, click buttons, and interact with apps on your behalf for hands-free control.</string>
+    <string name="accessibility_service_description">Alya Advanced AI Assistant Service provides complete hands-free voice control across your entire device. Capabilities include: 1. Voice-controlled screen navigation, scrolling, clicking, double-tapping, and typing. 2. Automated app opening and system settings control (Wi-Fi, Bluetooth, Flashlight, Volume, Brightness). 3. Hands-free call answering, rejection, and messaging automation. 4. Global system actions: Home, Back, Recent Apps, Notifications, Quick Settings, Lock Screen, and Split Screen. 5. Strict Security Guard: Automatically pauses all automated actions on Banking, UPI, Payment apps, and manual user touches to ensure complete privacy and transaction safety.</string>
 </resources>

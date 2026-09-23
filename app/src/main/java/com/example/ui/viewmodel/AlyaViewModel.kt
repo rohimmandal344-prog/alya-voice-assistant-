@@ -1721,6 +1721,15 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun enterStandbyMode() {
         if (!_isVoiceMode.value) return
+        // Do not force standby during active live conversation session to maintain ultra-low latency continuous listening
+        if (sessionManager.isNetworkAvailable.value || geminiLiveClient.isSessionActive()) {
+            Log.i("AlyaViewModel", "Preventing standby transition during active Live Conversation session to preserve ultra-low latency streaming.")
+            _isVoiceStandby.value = false
+            if (!app.audioCaptureManager.isCaptureActive.value && !_isMuted.value) {
+                app.audioCaptureManager.startCapture(com.example.voice.microphone.MicState.ACTIVE_VOICE_SESSION)
+            }
+            return
+        }
         Log.i("AlyaViewModel", "Entering low-power standby mode. Stopping speech recognition.")
         _isVoiceStandby.value = true
         speechManager.isContinuousMode = false
@@ -1740,9 +1749,14 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         _isVoiceStandby.value = false
         wakeWordManager.stop()
         sessionManager.onLiveVoiceStarted()
-        if (triggerSpeech && _isVoiceMode.value && !_isMuted.value) {
-            speechManager.isContinuousMode = true
-            startListening(isWakeWordTrigger = isWakeWordTrigger)
+        if (_isVoiceMode.value && !_isMuted.value) {
+            if (!app.audioCaptureManager.isCaptureActive.value) {
+                app.audioCaptureManager.startCapture(com.example.voice.microphone.MicState.ACTIVE_VOICE_SESSION)
+            }
+            if (!geminiLiveClient.isSessionActive() && triggerSpeech) {
+                speechManager.isContinuousMode = true
+                startListening(isWakeWordTrigger = isWakeWordTrigger)
+            }
         }
     }
 
@@ -1831,7 +1845,8 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         _isVoiceStandby.value = false
         _liveAssistantTranscript.value = ""
         speechManager.clearError()
-        speechManager.isContinuousMode = true
+        speechManager.stopListening()
+        speechManager.isContinuousMode = false
         _currentScreen.value = AssistantScreen.VOICE_MODE
         audioDeviceManager.requestAudioFocus()
         audioDeviceManager.setSpeakerphone(true) // Default to speakerphone for live conversation
