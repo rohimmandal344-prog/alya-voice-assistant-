@@ -20,6 +20,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.sqrt
+import com.example.voice.vad.RealtimeVoiceActivityDetector
+import com.example.voice.vad.VadState
 
 enum class MicState {
     DORMANT,
@@ -69,9 +71,36 @@ class MicrophoneManager(private val context: Context) {
     private val _isSpeechDetected = MutableStateFlow(false)
     val isSpeechDetected: StateFlow<Boolean> = _isSpeechDetected.asStateFlow()
 
-    private var vadThresholdDb = 38f // Baseline threshold for speech detection (raised from 15f to ignore ambient noise)
-    private var speechTailMs = 500L // Tail period to keep speech detected after silence
-    private var lastSpeechTimestamp = 0L
+    // Real-time Voice Activity Detector (VAD) layer
+    val vad = RealtimeVoiceActivityDetector(sampleRate = sampleRate)
+
+    var onSpeechStarted: (() -> Unit)? = null
+    var onSpeechEnded: ((speechDurationMs: Long) -> Unit)? = null
+    var onSilenceDetected: ((silenceDurationMs: Long) -> Unit)? = null
+    var onTurnComplete: ((speechDurationMs: Long, totalTurnMs: Long) -> Unit)? = null
+    var onBargeInDetected: ((rmsDb: Float) -> Unit)? = null
+
+    init {
+        vad.onSpeechStarted = {
+            _isSpeechDetected.value = true
+            onSpeechStarted?.invoke()
+        }
+        vad.onSpeechEnded = { speechDuration ->
+            _isSpeechDetected.value = false
+            onSpeechEnded?.invoke(speechDuration)
+        }
+        vad.onSilenceDetected = { silenceDuration ->
+            onSilenceDetected?.invoke(silenceDuration)
+        }
+        vad.onTurnComplete = { speechDuration, totalTurn ->
+            onTurnComplete?.invoke(speechDuration, totalTurn)
+        }
+        vad.onBargeInTriggered = { rmsDb ->
+            Log.i(TAG, "[MIC_MANAGER] VAD detected barge-in trigger at $rmsDb dB. Forcing AudioLock release.")
+            com.example.voice.audio.AudioLockManager.getInstance(context).triggerBargeIn()
+            onBargeInDetected?.invoke(rmsDb)
+        }
+    }
 
     /**
      * Systematically flushes internal microphone hardware buffers immediately
@@ -82,7 +111,7 @@ class MicrophoneManager(private val context: Context) {
         Log.i(TAG, "[MIC_MANAGER] Systematically flushing microphone audio buffer on wake-word activation.")
         isFlushPending.set(true)
         _isSpeechDetected.value = false
-        lastSpeechTimestamp = 0
+        vad.reset()
         com.example.util.diagnostics.DiagnosticLogManager.instance.logEvent(
             stage = com.example.util.diagnostics.DiagnosticStage.DETECTION,
             command = "WakeWordTrigger",
@@ -103,6 +132,7 @@ class MicrophoneManager(private val context: Context) {
         
         if (requestedState == MicState.DORMANT) {
             _isSpeechDetected.value = false
+            vad.reset()
             stopCapture()
         } else {
             startCaptureInternal()
@@ -120,6 +150,7 @@ class MicrophoneManager(private val context: Context) {
         _micState.value = MicState.DORMANT
         onMicStateChanged?.invoke(MicState.DORMANT)
         _isSpeechDetected.value = false
+        vad.reset()
         stopCapture()
     }
 
@@ -173,23 +204,26 @@ class MicrophoneManager(private val context: Context) {
                             continue
                         }
 
-                        val rmsDb = calculateRmsDb(frameBuffer, readSize)
-                        
-                        // Automatic Audio Lock / Duplex Guard: Check isMuted state and AudioLockManager
+                        // Synchronize assistant playback state to VAD
                         val audioLockManager = com.example.voice.audio.AudioLockManager.getInstance(context)
+                        val isAudioLocked = audioLockManager.isAudioLocked.value
+                        vad.setAssistantSpeaking(isAudioLocked)
 
-                        // Check if mic input buffer should be muted explicitly or by the Audio Lock
-                        if (isMuted.get() || audioLockManager.shouldMuteInputBuffer(rmsDb, bargeInThresholdDb = 58.0f)) {
+                        // Real-time multi-feature Voice Activity Detection (VAD) layer
+                        val isVoiceActive = vad.processFrame(frameBuffer, readSize)
+                        _isSpeechDetected.value = isVoiceActive
+                        val rmsDb = vad.lastRmsDb.value
+
+                        // Duplex Audio Lock Guard:
+                        // If mic is explicitly muted, or if audio lock is engaged and user is NOT actively speaking (or barging in),
+                        // mute the frame to prevent acoustic feedback into recognition pipelines.
+                        if (isMuted.get() || (audioLockManager.isAudioLocked.value && !isVoiceActive)) {
                             java.util.Arrays.fill(frameBuffer, 0.toShort())
-                            _isSpeechDetected.value = false
                             continue
                         }
                         
                         // Record input frame for latency monitoring in AudioSessionManager
                         com.example.audio.AudioSessionManager.recordMicCaptureFrame()
-                        
-                        // Simple energy-based VAD logic
-                        updateVadState(rmsDb)
                         
                         onAudioFrameCaptured?.invoke(frameBuffer, readSize, rmsDb)
                     } else if (readSize < 0) {
@@ -197,22 +231,6 @@ class MicrophoneManager(private val context: Context) {
                         delay(10)
                     }
                 }
-            }
-        }
-    }
-
-    private fun updateVadState(rmsDb: Float) {
-        val now = System.currentTimeMillis()
-        if (rmsDb > vadThresholdDb) {
-            if (!_isSpeechDetected.value) {
-                Log.d(TAG, "[VAD] Speech started detected at $rmsDb dB")
-                _isSpeechDetected.value = true
-            }
-            lastSpeechTimestamp = now
-        } else if (_isSpeechDetected.value) {
-            if (now - lastSpeechTimestamp > speechTailMs) {
-                Log.d(TAG, "[VAD] Speech ended (silence for ${now - lastSpeechTimestamp}ms)")
-                _isSpeechDetected.value = false
             }
         }
     }
@@ -265,6 +283,7 @@ class MicrophoneManager(private val context: Context) {
         _isRecordingActive.value = false
         recordingJob?.cancel()
         recordingJob = null
+        vad.reset()
 
         releaseAudioEffects()
 

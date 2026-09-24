@@ -35,6 +35,30 @@ class AudioCaptureManager private constructor(private val context: Context) {
     val isSpeechDetected: StateFlow<Boolean> = microphoneManager.isSpeechDetected
     val micState: StateFlow<MicState> = microphoneManager.micState
 
+    // Realtime Voice Activity Detector (VAD) exposure
+    val vad: com.example.voice.vad.RealtimeVoiceActivityDetector get() = microphoneManager.vad
+    val vadState: StateFlow<com.example.voice.vad.VadState> get() = microphoneManager.vad.vadState
+
+    var onSpeechStarted: (() -> Unit)?
+        get() = microphoneManager.onSpeechStarted
+        set(value) { microphoneManager.onSpeechStarted = value }
+
+    var onSpeechEnded: ((Long) -> Unit)?
+        get() = microphoneManager.onSpeechEnded
+        set(value) { microphoneManager.onSpeechEnded = value }
+
+    var onSilenceDetected: ((Long) -> Unit)?
+        get() = microphoneManager.onSilenceDetected
+        set(value) { microphoneManager.onSilenceDetected = value }
+
+    var onTurnComplete: ((Long, Long) -> Unit)?
+        get() = microphoneManager.onTurnComplete
+        set(value) { microphoneManager.onTurnComplete = value }
+
+    var onBargeInDetected: ((Float) -> Unit)?
+        get() = microphoneManager.onBargeInDetected
+        set(value) { microphoneManager.onBargeInDetected = value }
+
     /**
      * Callback for specific error events that require immediate UI response.
      */

@@ -114,13 +114,7 @@ class PcmAudioTrackPlayer(
             val bufferSize = maxOf(minBufSize * 4, 19200)
 
             val audioAttributes = AudioAttributes.Builder()
-                .apply {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        setUsage(AudioAttributes.USAGE_ASSISTANT)
-                    } else {
-                        setUsage(AudioAttributes.USAGE_MEDIA)
-                    }
-                }
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build()
 
@@ -309,6 +303,7 @@ class PcmAudioTrackPlayer(
                             updatePlaybackActive(false)
                             isTurnActive.set(false)
                             isServerTurnComplete.set(false)
+                            com.example.voice.audio.AudioLockManager.getInstance(com.example.AlyaApplication.instance).releaseLock(com.example.voice.audio.AudioLockReason.PCM_STREAMING)
                             onPlaybackFinished?.invoke()
                         }
                         break
@@ -432,6 +427,7 @@ class PcmAudioTrackPlayer(
         } finally {
             isPlayingState.set(false)
             updatePlaybackActive(false)
+            com.example.voice.audio.AudioLockManager.getInstance(com.example.AlyaApplication.instance).releaseLock(com.example.voice.audio.AudioLockReason.PCM_STREAMING)
         }
     }
 

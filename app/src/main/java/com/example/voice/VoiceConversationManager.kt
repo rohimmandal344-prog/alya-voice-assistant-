@@ -109,6 +109,10 @@ class VoiceConversationManager(
             handleBargeIn()
         }
 
+        sessionManager.onBargeInTriggered = {
+            handleBargeIn()
+        }
+
         ttsManager.onSpeechCompleted = {
             // ONLY re-arm speech recognition if conversation is active, AI is NOT currently streaming,
             // and TTS has completely finished playing all queued utterances.

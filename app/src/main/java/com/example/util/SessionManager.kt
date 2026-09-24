@@ -158,6 +158,57 @@ class SessionManager(
         _isAudioFocusHeld.value = true
     }
 
+    // Callbacks for turn-taking & barge-in coordination
+    var onBargeInTriggered: (() -> Unit)? = null
+    var onTurnTakingTriggered: ((speechDurationMs: Long, totalTurnMs: Long) -> Unit)? = null
+    var onSilenceDetected: ((silenceDurationMs: Long) -> Unit)? = null
+
+    /**
+     * VAD Turn-Taking Hook: Invoked when real-time VAD detects user speech onset.
+     * Accurately arbitrates turn-taking:
+     * - If assistant is speaking or responding, immediately signals barge-in and transitions session to LISTENING.
+     * - If session is IDLE or WAKE_DETECTED, transitions to LISTENING.
+     */
+    fun onUserSpeechStarted() {
+        if (_isSessionLocked.value) {
+            Log.w(TAG, "Ignored onUserSpeechStarted: Session is locked.")
+            return
+        }
+        val currentState = _sessionState.value
+        if (currentState == SessionState.SPEAKING || currentState == SessionState.RESPONDING) {
+            Log.i(TAG, "[SESSION_VAD] User speech started during $currentState! Firing Barge-In turn transition to LISTENING.")
+            updateState(SessionState.LISTENING)
+            _isMicActive.value = true
+            _isAudioFocusHeld.value = true
+            onBargeInTriggered?.invoke()
+        } else if (currentState == SessionState.IDLE || currentState == SessionState.WAKE_DETECTED) {
+            updateState(SessionState.LISTENING)
+            _isMicActive.value = true
+            _isAudioFocusHeld.value = true
+        }
+    }
+
+    /**
+     * VAD Turn-Taking Hook: Invoked when real-time VAD confirms conversational turn completion (silence detection).
+     * Accurately transitions session from LISTENING to PROCESSING.
+     */
+    fun onUserTurnCompleted(speechDurationMs: Long, totalTurnMs: Long) {
+        if (_isSessionLocked.value) return
+        val currentState = _sessionState.value
+        if (currentState == SessionState.LISTENING) {
+            Log.i(TAG, "[SESSION_VAD] User completed speech turn (${speechDurationMs}ms speech, ${totalTurnMs}ms turn). Transitioning to PROCESSING.")
+            updateState(SessionState.PROCESSING)
+            onTurnTakingTriggered?.invoke(speechDurationMs, totalTurnMs)
+        }
+    }
+
+    /**
+     * VAD Turn-Taking Hook: Invoked when real-time silence is detected during listening.
+     */
+    fun onSilenceDetected(silenceDurationMs: Long) {
+        onSilenceDetected?.invoke(silenceDurationMs)
+    }
+
     /**
      * Mark session as processing.
      */

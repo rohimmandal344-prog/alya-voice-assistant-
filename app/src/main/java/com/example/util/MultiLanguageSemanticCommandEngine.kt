@@ -306,9 +306,9 @@ object MultiLanguageSemanticCommandEngine {
         val level = if (levelMatcher.find()) levelMatcher.group(1) else null
 
         return when {
-            isUp -> StructuredAction("control_brightness", "control_brightness", mapOf("action" to "up", "value" to (level ?: "+20")), ToolRiskLevel.LOW)
-            isDown -> StructuredAction("control_brightness", "control_brightness", mapOf("action" to "down", "value" to (level ?: "-20")), ToolRiskLevel.LOW)
-            level != null -> StructuredAction("control_brightness", "control_brightness", mapOf("action" to "set", "value" to level), ToolRiskLevel.LOW)
+            isUp -> StructuredAction("control_brightness", "control_brightness", mapOf("action" to "up", "value" to (level ?: "+20"), "level" to (level ?: "+20")), ToolRiskLevel.LOW)
+            isDown -> StructuredAction("control_brightness", "control_brightness", mapOf("action" to "down", "value" to (level ?: "-20"), "level" to (level ?: "-20")), ToolRiskLevel.LOW)
+            level != null -> StructuredAction("control_brightness", "control_brightness", mapOf("action" to "set", "value" to level, "level" to level), ToolRiskLevel.LOW)
             else -> null
         }
     }
@@ -434,8 +434,9 @@ object MultiLanguageSemanticCommandEngine {
     }
 
     private fun extractWeatherLocation(t: String): String {
-        val inMatch = Pattern.compile("(?:in|of|for|mein|er|ka|de)\\s+([a-zA-Z\\u0900-\\u097F\\u0980-\\u09FF]+)").matcher(t)
-        return if (inMatch.find()) inMatch.group(1)?.trim() ?: "current" else "current"
+        val inMatch = Pattern.compile("\\b(?:in|of|for|mein|ka|de)\\s+([a-zA-Z\\u0900-\\u097F\\u0980-\\u09FF]+)", Pattern.CASE_INSENSITIVE).matcher(t)
+        val extracted = if (inMatch.find()) inMatch.group(1)?.trim() else null
+        return if (!extracted.isNullOrBlank() && extracted.lowercase() !in listOf("today", "now", "here", "kaisa", "hai")) extracted else "local"
     }
 
     private fun matchBatteryQuery(t: String): Boolean {

@@ -52,7 +52,24 @@ class AlyaApplication : Application() {
     }
 
     val pcmAudioPlayer: com.example.voice.audio.PcmAudioTrackPlayer by lazy { com.example.voice.audio.PcmAudioTrackPlayer() }
-    val audioCaptureManager: com.example.voice.microphone.AudioCaptureManager by lazy { com.example.voice.microphone.AudioCaptureManager.getInstance(this) }
+    val audioCaptureManager: com.example.voice.microphone.AudioCaptureManager by lazy {
+        com.example.voice.microphone.AudioCaptureManager.getInstance(this).apply {
+            onSpeechStarted = {
+                sessionManager.onUserSpeechStarted()
+            }
+            onTurnComplete = { speechDurationMs, totalTurnMs ->
+                sessionManager.onUserTurnCompleted(speechDurationMs, totalTurnMs)
+            }
+            onSilenceDetected = { silenceDurationMs ->
+                sessionManager.onSilenceDetected(silenceDurationMs)
+            }
+            onBargeInDetected = { _ ->
+                ttsManager.stop()
+                pcmAudioPlayer.stopAndFlushForBargeIn()
+                sessionManager.onUserSpeechStarted()
+            }
+        }
+    }
     val soundEffectManager: com.example.voice.SoundEffectManager by lazy { com.example.voice.SoundEffectManager() }
     val dataStorageManager: com.example.data.DataStorageManager by lazy { com.example.data.DataStorageManager(this) }
     val capabilityManager: com.example.capability.CapabilityManager by lazy { com.example.capability.CapabilityManager.getInstance(this) }

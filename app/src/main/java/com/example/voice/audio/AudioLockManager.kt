@@ -70,8 +70,11 @@ class AudioLockManager private constructor(private val context: Context) {
         }
     }
 
+    private var watchdogJob: kotlinx.coroutines.Job? = null
+
     /**
      * Acquires the automatic audio lock, muting microphone input buffers.
+     * Includes a safety watchdog timeout so the microphone can never be locked indefinitely.
      */
     @Synchronized
     fun acquireLock(reason: AudioLockReason) {
@@ -83,6 +86,16 @@ class AudioLockManager private constructor(private val context: Context) {
         _isAudioLocked.value = true
 
         onLockStateChanged?.invoke(true, reason)
+
+        // Safety Watchdog: Auto-release after 7 seconds if not released by player/TTS to prevent mute lockup
+        watchdogJob?.cancel()
+        watchdogJob = scope.launch {
+            kotlinx.coroutines.delay(7000L)
+            if (_isAudioLocked.value) {
+                Log.w(TAG, "[AUDIO_LOCK] Watchdog timer expired (7s). Forcing safety release of audio lock.")
+                releaseLock(AudioLockReason.IDLE)
+            }
+        }
     }
 
     /**
@@ -90,6 +103,9 @@ class AudioLockManager private constructor(private val context: Context) {
      */
     @Synchronized
     fun releaseLock(reason: AudioLockReason) {
+        watchdogJob?.cancel()
+        watchdogJob = null
+
         if (!_isAudioLocked.value) return
 
         Log.i(TAG, "[AUDIO_LOCK] Releasing audio lock (Previous reason: ${_lockReason.value}, Trigger: $reason). Unmuting mic input buffer.")
@@ -106,11 +122,27 @@ class AudioLockManager private constructor(private val context: Context) {
     }
 
     /**
+     * Immediately and unconditionally unlocks microphone buffers.
+     */
+    @Synchronized
+    fun forceUnlock() {
+        watchdogJob?.cancel()
+        watchdogJob = null
+        _isAudioLocked.value = false
+        _lockReason.value = AudioLockReason.IDLE
+        isBargeInActive.set(false)
+        onLockStateChanged?.invoke(false, AudioLockReason.IDLE)
+    }
+
+    /**
      * Triggers a barge-in event: unlocks the mic input buffer, releases audio lock,
      * and signals immediate speech recognition resumption.
      */
     @Synchronized
     fun triggerBargeIn() {
+        watchdogJob?.cancel()
+        watchdogJob = null
+
         if (!_isAudioLocked.value && !isBargeInActive.get()) return
 
         Log.i(TAG, "[AUDIO_LOCK] Barge-in event detected! Unlocking mic input buffer and resuming listening.")
@@ -128,7 +160,7 @@ class AudioLockManager private constructor(private val context: Context) {
     /**
      * Returns true if the microphone input frame should be muted (zeroed out).
      */
-    fun shouldMuteInputBuffer(rmsDb: Float, bargeInThresholdDb: Float = 28.0f): Boolean {
+    fun shouldMuteInputBuffer(rmsDb: Float, bargeInThresholdDb: Float = 38.0f): Boolean {
         if (!_isAudioLocked.value) return false
 
         // If energy exceeds barge-in threshold, trigger barge-in unlock automatically

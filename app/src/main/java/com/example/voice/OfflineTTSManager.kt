@@ -5,6 +5,7 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -53,6 +54,19 @@ class OfflineTTSManager(
             tts?.setSpeechRate(1.0f)
             tts?.setPitch(1.06f)
 
+            // Set high-fidelity speech audio attributes for studio-grade audio pipeline
+            // Uses USAGE_ASSISTANCE_NAVIGATION_GUIDANCE and CONTENT_TYPE_SPEECH to prevent speaker/earpiece routing issues
+            try {
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                tts?.setAudioAttributes(audioAttributes)
+                Log.i(TAG, "Configured Offline TTS AudioAttributes: USAGE_ASSISTANCE_NAVIGATION_GUIDANCE, CONTENT_TYPE_SPEECH")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting Offline TTS AudioAttributes: ${e.message}")
+            }
+
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     Log.d(TAG, "Offline TTS playback started: $utteranceId")
@@ -82,34 +96,58 @@ class OfflineTTSManager(
         }
     }
 
+    private var legacyFocusListener: AudioManager.OnAudioFocusChangeListener? = null
+
     /**
-     * Requests dynamic AudioFocus for transient speech usage.
+     * Requests dynamic AudioFocus for transient speech usage across multiple API levels.
+     * Uses USAGE_ASSISTANCE_NAVIGATION_GUIDANCE and CONTENT_TYPE_SPEECH to prevent earpiece routing.
      */
     private fun requestAudioFocus(): Boolean {
         return try {
-            val playbackAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANT)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-            
-            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                .setAudioAttributes(playbackAttributes)
-                .setAcceptsDelayedFocusGain(false)
-                .setOnAudioFocusChangeListener { focusChange ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+
+                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { focusChange ->
+                        when (focusChange) {
+                            AudioManager.AUDIOFOCUS_LOSS,
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                                // Stop speaking if focus is lost to prevent overlap
+                                stop()
+                            }
+                        }
+                    }
+                    .build()
+
+                focusRequest = request
+                val result = audioManager.requestAudioFocus(request)
+                result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            } else {
+                @Suppress("DEPRECATION")
+                val listener = AudioManager.OnAudioFocusChangeListener { focusChange ->
                     when (focusChange) {
                         AudioManager.AUDIOFOCUS_LOSS,
                         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
                         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                            // Stop speaking if focus is lost to prevent overlap
                             stop()
                         }
                     }
                 }
-                .build()
-            
-            focusRequest = request
-            val result = audioManager.requestAudioFocus(request)
-            result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+                legacyFocusListener = listener
+                @Suppress("DEPRECATION")
+                val result = audioManager.requestAudioFocus(
+                    listener,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+                )
+                result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to request AudioFocus: ${e.message}")
             false
@@ -117,14 +155,22 @@ class OfflineTTSManager(
     }
 
     /**
-     * Abandons transient AudioFocus cleanly.
+     * Abandons transient AudioFocus cleanly across multiple API levels.
      */
     private fun abandonAudioFocus() {
         try {
-            focusRequest?.let {
-                audioManager.abandonAudioFocusRequest(it)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest?.let {
+                    audioManager.abandonAudioFocusRequest(it)
+                }
+                focusRequest = null
+            } else {
+                @Suppress("DEPRECATION")
+                legacyFocusListener?.let {
+                    audioManager.abandonAudioFocus(it)
+                }
+                legacyFocusListener = null
             }
-            focusRequest = null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to abandon AudioFocus: ${e.message}")
         }

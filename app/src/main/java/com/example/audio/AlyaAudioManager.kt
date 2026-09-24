@@ -72,6 +72,7 @@ class AlyaAudioManager private constructor(private val context: Context) {
     val isDucked: StateFlow<Boolean> = _isDucked.asStateFlow()
 
     private var focusRequest: AudioFocusRequest? = null
+    private var legacyFocusListener: AudioManager.OnAudioFocusChangeListener? = null
     private var onFocusLostCallback: (() -> Unit)? = null
     private var onFocusRegainedCallback: (() -> Unit)? = null
 
@@ -140,7 +141,7 @@ class AlyaAudioManager private constructor(private val context: Context) {
 
     /**
      * Requests Audio Focus for Assistant playback / speech input.
-     * Uses USAGE_ASSISTANT and low-latency audio flags.
+     * Uses USAGE_ASSISTANCE_NAVIGATION_GUIDANCE and low-latency audio flags to prevent earpiece routing.
      */
     @Synchronized
     fun requestAudioFocus(
@@ -158,13 +159,7 @@ class AlyaAudioManager private constructor(private val context: Context) {
         return try {
             val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val attributes = AudioAttributes.Builder()
-                    .apply {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            setUsage(AudioAttributes.USAGE_ASSISTANT)
-                        } else {
-                            setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-                        }
-                    }
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
 
@@ -181,8 +176,13 @@ class AlyaAudioManager private constructor(private val context: Context) {
                 audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             } else {
                 @Suppress("DEPRECATION")
+                val listener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+                    handleFocusChange(focusChange)
+                }
+                legacyFocusListener = listener
+                @Suppress("DEPRECATION")
                 audioManager.requestAudioFocus(
-                    { focusChange -> handleFocusChange(focusChange) },
+                    listener,
                     AudioManager.STREAM_MUSIC,
                     focusGain
                 ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
@@ -236,7 +236,7 @@ class AlyaAudioManager private constructor(private val context: Context) {
      */
     @Synchronized
     fun abandonAudioFocus() {
-        if (!_isHoldingFocus.value && focusRequest == null) {
+        if (!_isHoldingFocus.value && focusRequest == null && legacyFocusListener == null) {
             return
         }
 
@@ -246,7 +246,8 @@ class AlyaAudioManager private constructor(private val context: Context) {
                 focusRequest = null
             } else {
                 @Suppress("DEPRECATION")
-                audioManager.abandonAudioFocus(null)
+                legacyFocusListener?.let { audioManager.abandonAudioFocus(it) }
+                legacyFocusListener = null
             }
             _isHoldingFocus.value = false
             _isDucked.value = false

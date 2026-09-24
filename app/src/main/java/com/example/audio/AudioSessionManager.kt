@@ -12,6 +12,7 @@ enum class AudioSessionType {
     WAKE_WORD,
     SPEECH_RECOGNITION,
     CALL_ASSISTANT,
+    LIVE_VOICE_SESSION,
     NONE
 }
 

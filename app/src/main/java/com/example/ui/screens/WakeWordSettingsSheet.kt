@@ -53,6 +53,12 @@ fun WakeWordSettingsSheet(
         try {
             mediaPlayer?.release()
             val mp = android.media.MediaPlayer().apply {
+                setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
                 setDataSource(path)
                 prepare()
                 start()

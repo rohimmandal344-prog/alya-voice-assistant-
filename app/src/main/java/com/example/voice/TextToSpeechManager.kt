@@ -261,19 +261,16 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
                 utteranceCountSinceInit = 0
                 Log.i(TAG, "TextToSpeech engine initialized successfully.")
 
-                // Set high-fidelity speech audio attributes for studio-grade low-latency speech pipeline
+                // Set high-fidelity speech audio attributes for studio-grade low-latency speech pipeline.
+                // Uses USAGE_ASSISTANCE_NAVIGATION_GUIDANCE and CONTENT_TYPE_SPEECH to prevent speaker/earpiece routing issues
+                // and correctly handle AudioFocus and media ducking across multiple Android API levels.
                 try {
                     val audioAttributes = AudioAttributes.Builder()
-                        .apply {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                setUsage(AudioAttributes.USAGE_ASSISTANT)
-                            } else {
-                                setUsage(AudioAttributes.USAGE_MEDIA)
-                            }
-                        }
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                     tts?.setAudioAttributes(audioAttributes)
+                    Log.i(TAG, "Configured TTS AudioAttributes: USAGE_ASSISTANCE_NAVIGATION_GUIDANCE, CONTENT_TYPE_SPEECH")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error setting TTS AudioAttributes: ${e.message}")
                 }

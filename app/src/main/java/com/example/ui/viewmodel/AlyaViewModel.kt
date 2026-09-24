@@ -1011,6 +1011,8 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         // Handle successful handshake verification: trigger natural live greeting from Gemini Live
         geminiLiveClient.onSetupComplete = {
             Log.i("AlyaViewModel", "Gemini Live session fully established. Triggering authentic soft female greeting from Gemini Live.")
+            // Stop local ASR since Gemini Live handles full-duplex PCM stream directly
+            speechManager.stopListening()
             val activeLang = _currentLanguageLocale.value.ifBlank { repository.preferences.voiceLanguage.value }
             val greetingPrompt = when (activeLang.lowercase().take(2)) {
                 "hi" -> "Greet the user warmly in natural Hindi with your authentic, soft, sweet female voice. Keep it brief (1 sentence) asking how their day is going."
@@ -1092,14 +1094,24 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Fallback to speechManager if Gemini Live encounters an unrecoverable error
+        // Resilient handling of Gemini Live errors: seamless fallback to local continuous ASR
         geminiLiveClient.onErrorOccurred = { errorMsg ->
             viewModelScope.launch(Dispatchers.Main) {
-                Log.w("AlyaViewModel", "Gemini Live error: $errorMsg. Checking offline speech recognition fallback.")
-                app.audioCaptureManager.stopCapture()
-                pcmAudioPlayer.stop()
-                if (_isVoiceMode.value && !speechManager.isListening.value && !_isMuted.value) {
-                    val activeLang = _currentLanguageLocale.value.ifBlank { repository.preferences.voiceLanguage.value }
+                Log.w("AlyaViewModel", "Gemini Live notice: $errorMsg. Activating local continuous speech recognition fallback.")
+                pcmAudioPlayer.stopAndFlushForBargeIn()
+                com.example.voice.audio.AudioLockManager.getInstance(app).forceUnlock()
+                if (_isVoiceMode.value && !_isMuted.value) {
+                    speechManager.isContinuousMode = true
+                    startListening()
+                }
+            }
+        }
+
+        geminiLiveClient.onConnectionClosed = {
+            viewModelScope.launch(Dispatchers.Main) {
+                Log.i("AlyaViewModel", "Gemini Live connection closed. Checking voice mode fallback.")
+                if (_isVoiceMode.value && !_isMuted.value && !speechManager.isListening.value) {
+                    speechManager.isContinuousMode = true
                     startListening()
                 }
             }
@@ -1132,16 +1144,23 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                 if (_isVoiceMode.value) {
                     val isAssistantPlaying = pcmAudioPlayer.isPlaying() || pcmAudioPlayer.isTurnActive() || pcmAudioPlayer.isPlaybackActive.value || ttsManager.isSpeaking.value
                     if (!isAssistantPlaying) {
-                        // When assistant is not speaking, stream all user audio immediately
-                        geminiLiveClient.sendAudioFrame(pcmBuffer, readSize)
+                        // When assistant is not speaking, stream all user audio immediately to Gemini Live
+                        if (geminiLiveClient.isSessionActive()) {
+                            geminiLiveClient.sendAudioFrame(pcmBuffer, readSize)
+                        }
                     } else {
-                        // When assistant is speaking, forward audio if user speaks (>= 58 dB RMS) for smooth barge-in
+                        // When assistant is speaking, forward audio if user speaks (VAD speech active or >= 38 dB RMS) for instant natural barge-in
                         val timeSincePlaybackStart = now - lastPlaybackStartTime
-                        if (timeSincePlaybackStart > 200L && rmsDb >= 58.0f) {
-                            Log.i("AlyaViewModel", "Barge-in detected during assistant speech ($rmsDb dB).")
+                        val isBargeInSpeech = app.audioCaptureManager.vad.isSpeechActive.value || (timeSincePlaybackStart > 120L && rmsDb >= 38.0f)
+                        if (isBargeInSpeech) {
+                            Log.i("AlyaViewModel", "Barge-in detected during assistant speech ($rmsDb dB, vad=${app.audioCaptureManager.vad.isSpeechActive.value}). Stopping assistant audio immediately.")
                             pcmAudioPlayer.stopAndFlushForBargeIn()
                             ttsManager.stop()
-                            geminiLiveClient.sendAudioFrame(pcmBuffer, readSize)
+                            com.example.voice.audio.AudioLockManager.getInstance(app).forceUnlock()
+                            sessionManager.onUserSpeechStarted()
+                            if (geminiLiveClient.isSessionActive()) {
+                                geminiLiveClient.sendAudioFrame(pcmBuffer, readSize)
+                            }
                         }
                     }
                 }
@@ -1681,8 +1700,8 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         val cleanDisplayText = com.example.util.SystemThoughtFilter.cleanForDisplay(text)
         updateAlyaSubtitle(cleanDisplayText)
 
-        // If PCM audio track is currently playing live WebSocket stream audio, suppress secondary Android TTS to prevent double voice overlap
-        if (pcmAudioPlayer.isPlaybackActive.value) {
+        // If in live Voice Mode and Gemini Live is active or PCM audio track is playing, suppress secondary Android TTS to prevent double voice overlap
+        if (_isVoiceMode.value && (geminiLiveClient.isSessionActive() || pcmAudioPlayer.isPlaying() || pcmAudioPlayer.isTurnActive() || pcmAudioPlayer.isPlaybackActive.value)) {
             Log.i("AlyaViewModel", "Live conversation audio active: Native PCM audio streaming active. Suppressing secondary TTS.")
             return
         }
@@ -1841,7 +1860,8 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         clearSubtitles()
         com.example.voice.error.VoiceErrorRegistry.instance.registerNetworkCallback(app)
         
-        // Request dedicated CALL_ASSISTANT audio session to claim exclusive microphone ownership
+        // Request dedicated live voice audio session to claim exclusive microphone ownership
+        com.example.audio.AudioSessionManager.requestSession(com.example.audio.AudioSessionType.LIVE_VOICE_SESSION)
         com.example.audio.AudioSessionManager.requestSession(com.example.audio.AudioSessionType.CALL_ASSISTANT)
         
         wakeWordManager.isSuppressed = true
@@ -1858,6 +1878,11 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         audioDeviceManager.requestAudioFocus()
         audioDeviceManager.setSpeakerphone(true) // Default to speakerphone for live conversation
         sessionManager.onLiveVoiceStarted()
+
+        // Clean any stale locks or audio from previous sessions
+        com.example.voice.audio.AudioLockManager.getInstance(app).forceUnlock()
+        ttsManager.stop()
+        pcmAudioPlayer.stopCleanly()
 
         val soundEffects = repository.preferences.soundEffectsEnabled.value
         soundEffectManager.play(com.example.voice.SoundEffectManager.SoundType.VOICE_START, enabled = soundEffects)
@@ -1897,12 +1922,22 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                     voiceName = geminiVoice,
                     tools = tools
                 )
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(2500)
+                    if (_isVoiceMode.value && !geminiLiveClient.isSessionActive() && !_isMuted.value && !speechManager.isListening.value) {
+                        Log.i("AlyaViewModel", "Gemini Live not yet active; starting local continuous speech recognition fallback.")
+                        speechManager.isContinuousMode = true
+                        startListening()
+                    }
+                }
             } catch (e: Exception) {
                 Log.w("AlyaViewModel", "Gemini Live background init notice: ${e.message}")
+                speechManager.isContinuousMode = true
                 speakResponse(greetingText)
             }
         } else {
             // Offline fallback greeting via high-quality local female TTS
+            speechManager.isContinuousMode = true
             speakResponse(greetingText)
         }
     }
@@ -2129,8 +2164,10 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         wakeWordManager.isSuppressed = false
         _liveAssistantTranscript.value = ""
 
-        // Release CALL_ASSISTANT audio session
+        // Release audio sessions and force-unlock any microphone locks
+        com.example.audio.AudioSessionManager.releaseSession(com.example.audio.AudioSessionType.LIVE_VOICE_SESSION)
         com.example.audio.AudioSessionManager.releaseSession(com.example.audio.AudioSessionType.CALL_ASSISTANT)
+        com.example.voice.audio.AudioLockManager.getInstance(app).forceUnlock()
 
         // Cleanly disconnect Gemini Live WebSocket and PCM AudioTrack Player without pops
         geminiLiveClient.disconnect()
@@ -2161,6 +2198,10 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startListening(isWakeWordTrigger: Boolean = false) {
         if (_isMuted.value) return
+        if (_isVoiceMode.value && geminiLiveClient.isSessionActive()) {
+            Log.d("AlyaViewModel", "Skipping startListening: Gemini Live raw audio session is actively streaming.")
+            return
+        }
         if (com.example.service.TelephonyService.isCallActive) {
             Log.i("AlyaViewModel", "Skipping startListening: System call is currently active.")
             return

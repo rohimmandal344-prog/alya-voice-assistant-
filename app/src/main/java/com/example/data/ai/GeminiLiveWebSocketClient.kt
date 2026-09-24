@@ -43,7 +43,11 @@ class GeminiLiveWebSocketClient {
 
     companion object {
         private const val TAG = "GeminiLiveClient"
-        const val LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+        const val LIVE_MODEL = "models/gemini-2.0-flash-exp"
+        private val FALLBACK_MODELS = listOf(
+            "models/gemini-2.0-flash-exp",
+            "models/gemini-2.5-flash-native-audio-preview-12-2025"
+        )
         private const val WS_BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
         private const val DEFAULT_VOICE = "Kore" // Soft Melodic Human Female Voice (Alya Persona)
     }
@@ -276,12 +280,13 @@ class GeminiLiveWebSocketClient {
             delay(backoffMs)
             
             if (!isConnected.get()) {
-                Log.d(TAG, "[CONN_RECOVERY] Executing background reconnection attempt $reconnectAttemptCount...")
+                val candidateModel = FALLBACK_MODELS[reconnectAttemptCount % FALLBACK_MODELS.size]
+                Log.d(TAG, "[CONN_RECOVERY] Executing background reconnection attempt $reconnectAttemptCount with model $candidateModel...")
                 connect(
                     params.systemInstruction,
                     params.targetLanguage,
                     params.voiceName,
-                    params.modelName,
+                    candidateModel,
                     params.tools
                 )
             }

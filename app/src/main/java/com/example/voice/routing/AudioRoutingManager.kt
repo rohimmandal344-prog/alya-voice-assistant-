@@ -66,6 +66,7 @@ class AudioRoutingManager(private val context: Context) {
 
     private val isFocusHeld = AtomicBoolean(false)
     private var focusRequest: AudioFocusRequest? = null
+    private var legacyFocusListener: AudioManager.OnAudioFocusChangeListener? = null
     private var onFocusLossListener: (() -> Unit)? = null
 
     private var preferredRoute: AudioRoute = AudioRoute.AUTO
@@ -329,13 +330,7 @@ class AudioRoutingManager(private val context: Context) {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val playbackAttributes = AudioAttributes.Builder()
-                    .apply {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            setUsage(AudioAttributes.USAGE_ASSISTANT)
-                        } else {
-                            setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-                        }
-                    }
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
 
@@ -351,12 +346,17 @@ class AudioRoutingManager(private val context: Context) {
                 focusRequest = request
                 val res = audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
                 isFocusHeld.set(res)
-                Log.i(TAG, "Audio focus requested (O+): granted=$res")
+                Log.i(TAG, "Audio focus requested (O+ USAGE_ASSISTANCE_NAVIGATION_GUIDANCE): granted=$res")
                 res
             } else {
                 @Suppress("DEPRECATION")
+                val listener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+                    handleFocusChange(focusChange)
+                }
+                legacyFocusListener = listener
+                @Suppress("DEPRECATION")
                 val res = audioManager.requestAudioFocus(
-                    { focusChange -> handleFocusChange(focusChange) },
+                    listener,
                     AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
                 ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
@@ -398,7 +398,7 @@ class AudioRoutingManager(private val context: Context) {
      */
     @Synchronized
     fun abandonAudioFocus() {
-        if (!isFocusHeld.getAndSet(false) && focusRequest == null) {
+        if (!isFocusHeld.getAndSet(false) && focusRequest == null && legacyFocusListener == null) {
             return
         }
 
@@ -408,7 +408,8 @@ class AudioRoutingManager(private val context: Context) {
                 focusRequest = null
             } else {
                 @Suppress("DEPRECATION")
-                audioManager.abandonAudioFocus(null)
+                legacyFocusListener?.let { audioManager.abandonAudioFocus(it) }
+                legacyFocusListener = null
             }
             onFocusLossListener = null
             Log.d(TAG, "Audio focus abandoned cleanly.")
