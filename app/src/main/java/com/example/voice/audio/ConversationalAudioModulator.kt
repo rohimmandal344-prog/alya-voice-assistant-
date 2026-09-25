@@ -175,7 +175,7 @@ object ConversationalAudioModulator {
             .replace(Regex("https?://\\S+"), "the link")
             .replace(Regex("[\\p{So}\\p{Cn}\\x{1F300}-\\x{1F9FF}\\x{1F600}-\\x{1F64F}\\x{1F680}-\\x{1F6FF}]"), "")
 
-        // Natural phonetic acronym expansions
+        // Multilingual Phonetic Normalization (Hinglish / Banglish / English)
         val phoneticMap = mapOf(
             "\\bAI\\b" to "A I",
             "\\bWi-?Fi\\b" to "Wi-Fi",
@@ -183,8 +183,18 @@ object ConversationalAudioModulator {
             "\\bGPS\\b" to "G P S",
             "\\bSMS\\b" to "S M S",
             "\\bUSB\\b" to "U S B",
-            "\\bNFC\\b" to "N F C",
             "\\bUI\\b" to "U I",
+            "\\bchalo\\b" to "chah-lo",
+            "\\bkaro\\b" to "kah-ro",
+            "\\bkijiye\\b" to "key-jee-yay",
+            "\\bkardo\\b" to "kar-doe",
+            "\\bshuru\\b" to "shoo-roo",
+            "\\bband\\b" to "bund",
+            "\\bpankha\\b" to "pun-kha",
+            "\\bbatti\\b" to "but-tee",
+            "\\bkore\\b" to "ko-ray",
+            "\\balya\\b" to "ahl-yah",
+            "\\bsen-o\\b" to "say-no",
             "\\be\\.g\\." to "for example",
             "\\bi\\.e\\." to "that is",
             "\\betc\\." to "and so on",

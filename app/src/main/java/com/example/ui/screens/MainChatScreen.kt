@@ -146,6 +146,8 @@ fun MainChatScreen(
     val isBatterySaverActive by viewModel.isBatterySaverActive.collectAsState()
     val powerState by viewModel.powerState.collectAsState()
     val isHardwareReleased by viewModel.isHardwareReleased.collectAsState()
+    val currentTrace by viewModel.currentReasoningTrace.collectAsState()
+    val isSuperReasoningActive by viewModel.isSuperReasoningActive.collectAsState()
 
     val isListeningPopupVisible by viewModel.isListeningPopupVisible.collectAsStateWithLifecycle()
     val detectedWakeWord by viewModel.detectedWakeWord.collectAsStateWithLifecycle()
@@ -697,6 +699,13 @@ fun MainChatScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    item {
+                        com.example.ui.components.ReasoningTracePanel(
+                            trace = currentTrace,
+                            isActive = isSuperReasoningActive
+                        )
+                    }
+
                     items(messages, key = { it.id }) { message ->
                         MessageItem(
                             message = message,

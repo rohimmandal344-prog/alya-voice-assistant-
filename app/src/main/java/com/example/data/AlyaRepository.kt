@@ -232,8 +232,8 @@ class AlyaRepository(
         languageHint: String? = null
     ): MessageEntity = withContext(Dispatchers.IO) {
         val emotion = EmotionDetector.detectEmotion(userText)
-
         val isOnline = isNetworkAvailable()
+        val lang = languageHint ?: preferences.voiceLanguage.value
 
         // 1. Save user message in DB
         val userMessage = MessageEntity(
@@ -252,322 +252,41 @@ class AlyaRepository(
             renameConversation(conversationId, shortTitle)
         }
 
-        // 2. Check direct identity / name inquiries
-        val cleanInput = userText.trim().lowercase().replace(Regex("[?!.]"), "")
-        if (cleanInput in setOf(
-                "what is your name", "whats your name", "who are you",
-                "what are you called", "tell me your name", "who is this",
-                "what's your name", "who are you aly", "who are you alya",
-                "who are you alisa", "tell me your full name"
-            ) || cleanInput.startsWith("what should i call you")
-        ) {
-            val identityResponse = MessageEntity(
-                conversationId = conversationId,
-                role = "assistant",
-                content = "I'm Alisa Mikhailovna Kujou (Alya), your personal Android AI Assistant! I can help you manage your device, control settings, open apps, set alarms, make phone calls, and answer your questions."
-            )
-            messageDao.insertMessage(identityResponse)
-            return@withContext identityResponse
-        }
-
-        // Check for in-app update query
-        if (cleanInput in setOf(
-                "check for update", "check for updates", "update app",
-                "update the app", "check app update", "check app updates",
-                "is there an update", "any updates"
-            )
-        ) {
-            val updateResult = updateManager.checkForUpdate(preferences.updateCheckUrl.value)
-            val msgText = if (updateResult.isSuccess) {
-                val info = updateResult.getOrThrow()
-                if (info.isUpdateAvailable) {
-                    "A new update for Alya is available! Version ${info.versionName} (Build ${info.versionCode}). Head to Settings to download and install it now."
-                } else {
-                    "You're already using the latest version of Alya (v${info.currentVersionName}). Everything is up to date!"
-                }
-            } else {
-                "I couldn't connect to the update server. You can inspect or modify the update URL in Settings."
-            }
-            val updateResponse = MessageEntity(
-                conversationId = conversationId,
-                role = "assistant",
-                content = msgText
-            )
-            messageDao.insertMessage(updateResponse)
-            return@withContext updateResponse
-        }
-
-        // 3. Check offline NLU for instant device actions
-        val directAction = OfflineNluEngine.parseCommand(userText)
-        if (directAction != null) {
-            return@withContext handleActionExecution(conversationId, directAction)
-        }
-
-        // 4. Check network connectivity
-        if (!isOnline) {
-            val offlineAnswer = OfflineNluEngine.generateOfflineResponse(userText, context)
-            var offlineContent = offlineAnswer
-            
-            // Graceful fallback to local Room database cached data
-            if (offlineContent == null) {
-                val localMemories = memoryDao.getAllMemories()
-                val userTokens = userText.lowercase().split(" ", "?", ".", ",").filter { it.length > 3 }
-                val matchedMemories = localMemories.filter { mem -> 
-                    userTokens.any { token -> mem.content.lowercase().contains(token) || mem.key.lowercase().contains(token) }
-                }
-                if (matchedMemories.isNotEmpty()) {
-                    offlineContent = "I'm currently offline, but based on your saved data:\n" + matchedMemories.take(2).joinToString("\n") { "- ${it.content}" }
-                } else {
-                    offlineContent = "I'm running in offline mode. I can help you with Wi-Fi, Bluetooth, mobile data, flashlight, alarms, timers, battery status, opening apps, searching contacts, and local memories!"
-                }
-            }
-            
-            val offlineResponse = MessageEntity(
-                conversationId = conversationId,
-                role = "assistant",
-                content = offlineContent,
-                isSynced = false
-            )
-            messageDao.insertMessage(offlineResponse)
-            return@withContext offlineResponse
-        }
-
-        // 4. Gather rich context & memories for Gemini
-        val memories = if (preferences.isMemoryEnabled()) memoryDao.getAllMemories() else emptyList()
-        val historyMessages = messageDao.getMessagesForConversation(conversationId).takeLast(16)
-        val apiHistory = historyMessages.map { Pair(if (it.role == "user") "user" else "model", it.content) }
-
-        // Live Data Injection for accurate numerical responses (Apps, Tasks, Devices)
-        val isAppQuery = cleanInput.contains("app") || cleanInput.contains("installed")
-        val isTaskQuery = cleanInput.contains("task") || cleanInput.contains("reminder") || cleanInput.contains("schedule") || cleanInput.contains("todo")
-        val isDeviceQuery = cleanInput.contains("device") || cleanInput.contains("linked") || cleanInput.contains("connected")
-        val isContactQuery = cleanInput.contains("contact") || cleanInput.contains("phone number") || cleanInput.contains("who is") || cleanInput.contains("call ") || cleanInput.contains("dial ")
-
-        val appInventoryBlock = if (isAppQuery) {
-            val scan = com.example.domain.tools.PhoneSecurityAppScanner(context).scanAllInstalledApps()
-            """
-            
-            REAL-TIME DEVICE APP INVENTORY DATA (PRECISE INTERNAL INVENTORY):
-            - Total Installed Apps: ${scan.totalAppsCount}
-            - System Default Apps: ${scan.systemAppsCount}
-            - Third-Party Apps: ${scan.thirdPartyAppsCount}
-            - Safe/Warning/Risk: ${scan.safeAppsCount}/${scan.warningAppsCount}/${scan.highRiskAppsCount}
-            
-            FULL SECURITY SUMMARY:
-            ${scan.fullSummaryText}
-            """.trimIndent()
-        } else ""
-
-        val contactInventoryBlock = if (isContactQuery) {
-            val contactManager = com.example.domain.contacts.ContactManager(context)
-            if (contactManager.hasReadContactsPermission()) {
-                val query = userText.replace(Regex("(?i)call|dial|who is|contact|phone number"), "").trim()
-                val topContacts = if (query.length > 2) contactManager.searchContacts(query, 5) else emptyList()
-                if (topContacts.isNotEmpty()) {
-                    """
-                    
-                    REAL-TIME CONTACT SEARCH DATA:
-                    Found ${topContacts.size} relevant contacts for '$query':
-                    ${topContacts.joinToString("\n") { "- ${it.name}: ${it.phoneNumber}" }}
-                    """.trimIndent()
-                } else ""
-            } else ""
-        } else ""
-
-        val taskInventoryBlock = if (isTaskQuery) {
-            val tasks = scheduledTaskDao.getAllTasks()
-            val pending = tasks.count { !it.isCompleted }
-            """
-            
-            REAL-TIME TASK/REMINDER DATA (PRECISE INTERNAL INVENTORY):
-            - Total Tasks: ${tasks.size}
-            - Pending Tasks: $pending
-            - Completed Tasks: ${tasks.size - pending}
-            
-            """.trimIndent()
-        } else ""
-
-        val deviceInventoryBlock = if (isDeviceQuery) {
-            val devices = linkedDeviceDao.getAllDevices()
-            """
-            
-            REAL-TIME LINKED DEVICE DATA (PRECISE INTERNAL INVENTORY):
-            - Total Linked Devices: ${devices.size}
-            - Online Devices: ${devices.count { it.isOnline }}
-            
-            """.trimIndent()
-        } else ""
-
-        val appCapabilityHandshakeBlock = """
-        
-        ALYA APP CAPABILITY HANDSHAKE (BODY OF ALYA):
-        {"app_capabilities": {"platform": "Android (Kotlin)", "alarm": true, "tts_name_call": true, "offline_mode": true, "exact_alarms": true, "devices": ["light", "fan", "AC", "wifi", "bluetooth", "torch", "volume", "brightness"], "languages": ["en", "hi", "bn", "ja"]}}
-        """.trimIndent()
-
-        val systemPrompt = AiPersonality.buildSystemPrompt(
-            memories = memories,
-            isVoiceMode = isVoiceMode,
-            emotionCue = emotion,
-            language = languageHint ?: preferences.voiceLanguage.value,
-            userCommand = userText,
-            persona = preferences.voicePersona.value
-        ) + appCapabilityHandshakeBlock + appInventoryBlock + taskInventoryBlock + deviceInventoryBlock + contactInventoryBlock
-
-        val isUltraLowLatency = preferences.ultraLowLatencyMode.value
-        val maxTokens = if (isVoiceMode && isUltraLowLatency) 280 else if (isVoiceMode) 360 else 512
-
-        val isNetworkAvailableFlow = isNetworkAvailable() || com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
-
-        if (!isNetworkAvailableFlow) {
-            val parsedAction = com.example.data.ai.OfflineNluEngine.parseCommand(userText)
-            if (parsedAction != null) {
-                val result = toolExecutor.executeAction(
-                    action = parsedAction,
-                    isUserConfirmed = false,
-                    confirmationPolicy = preferences.getConfirmationLevel()
-                )
-                val messageContent = if (result.success) {
-                    "Executing offline command."
-                } else {
-                    result.message
-                }
-                
-                val assistantMessage = MessageEntity(
-                    conversationId = conversationId,
-                    role = "assistant",
-                    content = messageContent,
-                    toolName = parsedAction.toolName,
-                    toolActionJson = "{\"intent\":\"${parsedAction.intent}\"}",
-                    toolStatus = if (result.requiresConfirmation) "pending_confirmation" else if (result.success) "executed" else "failed",
-                    toolResult = result.output ?: result.message
-                )
-                messageDao.insertMessage(assistantMessage)
-                messageDao.trimExcessMessagesForConversation(conversationId, 150)
-                return@withContext assistantMessage
-            }
-            
-            val offlineFallback = com.example.data.ai.OfflineNluEngine.generateOfflineResponse(userText, context)
-            val langTag = (languageHint ?: preferences.voiceLanguage.value).lowercase()
-            var fallbackContent = offlineFallback ?: when {
-                langTag.startsWith("hi") -> "हाँ जी, मैं सुन रही हूँ! मैं पूरी तरह से तैयार हूँ। आप मुझे फोन के किसी भी काम के लिए कह सकते हैं या बात कर सकते हैं।"
-                langTag.startsWith("bn") -> "হ্যাঁ, আমি শুনছি! আমি পুরোপুরি প্রস্তুত। আপনি আমাকে ফোনের যেকোনো কাজের জন্য বলতে পারেন বা কথা বলতে পারেন।"
-                langTag.startsWith("ja") -> "はい、聞いていますよ！オフラインでもしっかりお手伝いできます。何かご用件はありますか？"
-                else -> "I'm right here listening! I'm fully ready to help you with phone controls, apps, calls, notes, or chat. What would you like to do?"
-            }
-            
-            val localMemories = memoryDao.getAllMemories()
-            val userTokens = userText.lowercase().split(" ", "?", ".", ",").filter { it.length > 3 }
-            val matchedMemories = localMemories.filter { mem -> 
-                userTokens.any { token -> mem.content.lowercase().contains(token) || mem.key.lowercase().contains(token) }
-            }
-            if (matchedMemories.isNotEmpty() && offlineFallback == null) {
-                fallbackContent += "\nHere is what I found in your notes:\n" + matchedMemories.take(2).joinToString("\n") { "- ${it.content}" }
-            }
-
-            val fallbackResponse = MessageEntity(
-                conversationId = conversationId,
-                role = "assistant",
-                content = fallbackContent
-            )
-            messageDao.insertMessage(fallbackResponse)
-            messageDao.trimExcessMessagesForConversation(conversationId, 150)
-            return@withContext fallbackResponse
-        }
-
-        // Generate response using Open-Source Model Provider (Local On-Device AI / Self-Hosted)
-        val providerHistory = apiHistory.map { (role, content) ->
+        // 2. Check for AGI-level reasoning and extreme automation
+        val historyMessages = messageDao.getMessagesForConversation(conversationId).takeLast(10)
+        val providerHistory = historyMessages.map {
             com.example.alya.provider.AlyaChatMessage(
-                role = if (role == "user") com.example.alya.provider.MessageRole.USER else com.example.alya.provider.MessageRole.ASSISTANT,
-                content = content
+                role = if (it.role == "user") com.example.alya.provider.MessageRole.USER else com.example.alya.provider.MessageRole.ASSISTANT,
+                content = it.content
             )
         }
 
-        val activeModel = modelProviderRegistry.getActiveProvider()
-        val genResult = activeModel.generate(
+        // Use AgentOrchestrator for EXTREME reasoning
+        val agentResult = agentOrchestrator.execute(
             prompt = userText,
             history = providerHistory,
-            options = com.example.alya.provider.GenerationOptions(
-                systemInstruction = systemPrompt,
-                temperature = if (isVoiceMode) 0.65f else 0.7f,
-                maxTokens = maxTokens
-            )
+            targetLanguage = lang,
+            isOnline = isOnline
         )
 
-        return@withContext if (genResult is com.example.alya.provider.GenerationResult.Success) {
-            val rawResponse = genResult.text.ifBlank { "I'm here to help." }
+        // 3. Save assistant message in DB
+        val executedAction = agentResult.allActionsExecuted.firstOrNull()
+        val assistantMessage = MessageEntity(
+            conversationId = conversationId,
+            role = "assistant",
+            content = agentResult.replyText,
+            toolName = executedAction?.toolName,
+            toolActionJson = executedAction?.parameters?.toString(),
+            toolStatus = if (executedAction != null) {
+                if (executedAction.requiresConfirmation) "pending_confirmation" else "executed"
+            } else "none",
+            toolResult = agentResult.trace?.steps?.lastOrNull()?.observation,
+            isSynced = isOnline
+        )
+        messageDao.insertMessage(assistantMessage)
+        messageDao.trimExcessMessagesForConversation(conversationId, 150)
 
-            // Check if response contains an action tag, fenced json, or raw inline json command
-            val actionTagMatch = Regex("```action\\s*([\\s\\S]*?)\\s*```").find(rawResponse)
-                ?: Regex("```json\\s*([\\s\\S]*?)\\s*```").find(rawResponse)
-                ?: Regex("(?s)(\\{[^{}]*\"(?:command_id|action|intent|device_domain|tool)\"[^{}]*\\})").find(rawResponse)
-            if (actionTagMatch != null) {
-                val actionJson = (actionTagMatch.groups[1]?.value ?: actionTagMatch.value).trim()
-                val parsedAction = parseActionJson(actionJson)
-
-                if (parsedAction != null && parsedAction.toolName != "answer") {
-                    val result = toolExecutor.executeAction(
-                        action = parsedAction,
-                        isUserConfirmed = false,
-                        confirmationPolicy = preferences.getConfirmationLevel()
-                    )
-
-                    val assistantMessage = MessageEntity(
-                        conversationId = conversationId,
-                        role = "assistant",
-                        content = rawResponse,
-                        toolName = parsedAction.toolName,
-                        toolActionJson = actionJson,
-                        toolStatus = if (result.requiresConfirmation) "pending_confirmation" else if (result.success) "executed" else "failed",
-                        toolResult = result.output ?: result.message
-                    )
-                    messageDao.insertMessage(assistantMessage)
-                    messageDao.trimExcessMessagesForConversation(conversationId, 150)
-                    assistantMessage
-                } else {
-                    val assistantMessage = MessageEntity(
-                        conversationId = conversationId,
-                        role = "assistant",
-                        content = rawResponse,
-                        toolActionJson = if (parsedAction != null) actionJson else null
-                    )
-                    messageDao.insertMessage(assistantMessage)
-                    messageDao.trimExcessMessagesForConversation(conversationId, 150)
-                    assistantMessage
-                }
-            } else {
-                val assistantMessage = MessageEntity(
-                    conversationId = conversationId,
-                    role = "assistant",
-                    content = rawResponse
-                )
-                messageDao.insertMessage(assistantMessage)
-                messageDao.trimExcessMessagesForConversation(conversationId, 150)
-                assistantMessage
-            }
-        } else {
-            val offlineFallback = OfflineNluEngine.generateOfflineResponse(userText, context)
-            var fallbackContent = offlineFallback ?: "I'm right here with you in offline mode. All device controls, alarms, settings, and local tools are ready."
-            
-            // Graceful fallback to local Room database cached data if it was a connection delay
-            if (offlineFallback == null && fallbackContent.contains("connection delay")) {
-                val localMemories = memoryDao.getAllMemories()
-                val userTokens = userText.lowercase().split(" ", "?", ".", ",").filter { it.length > 3 }
-                val matchedMemories = localMemories.filter { mem -> 
-                    userTokens.any { token -> mem.content.lowercase().contains(token) || mem.key.lowercase().contains(token) }
-                }
-                if (matchedMemories.isNotEmpty()) {
-                    fallbackContent = "Cloud service is unreachable right now, but I found this in your saved data:\n" + matchedMemories.take(2).joinToString("\n") { "- ${it.content}" }
-                }
-            }
-
-            val fallbackResponse = MessageEntity(
-                conversationId = conversationId,
-                role = "assistant",
-                content = fallbackContent
-            )
-            messageDao.insertMessage(fallbackResponse)
-            fallbackResponse
-        }
+        assistantMessage
     }
 
     private suspend fun handleActionExecution(

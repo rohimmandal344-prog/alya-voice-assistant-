@@ -84,6 +84,60 @@ class JarvisMacroEngine(
     )
 
     /**
+     * Dynamically synthesizes a macro protocol from a natural language goal.
+     */
+    suspend fun synthesizeAutonomousMacro(
+        goal: String,
+        modelProvider: com.example.alya.provider.AlyaModelProvider
+    ): JarvisMacroProtocol? = withContext(Dispatchers.IO) {
+        val prompt = """
+            Goal: $goal
+            
+            Synthesize a multi-step JARVIS automation macro to achieve this goal on an Android device.
+            Return a JSON object with:
+            {
+              "name": "Macro Name",
+              "description": "Short description",
+              "actions": [
+                { "intent": "intent_id", "tool": "tool_name", "parameters": { "key": "value" } }
+              ]
+            }
+            Use valid tool names like: device_volume, device_flashlight, weather_info, task_list, alarm_create, app_open.
+        """.trimIndent()
+        
+        val res = modelProvider.generate(prompt, emptyList(), com.example.alya.provider.GenerationOptions(temperature = 0.3f))
+        if (res is com.example.alya.provider.GenerationResult.Success) {
+            try {
+                val obj = org.json.JSONObject(res.text.replace(Regex("```json|```"), "").trim())
+                val actions = mutableListOf<StructuredAction>()
+                val actionsArr = obj.getJSONArray("actions")
+                for (i in 0 until actionsArr.length()) {
+                    val actObj = actionsArr.getJSONObject(i)
+                    actions.add(
+                        StructuredAction(
+                            intent = actObj.getString("intent"),
+                            toolName = actObj.getString("tool"),
+                            parameters = mutableMapOf<String, String>().apply {
+                                val params = actObj.optJSONObject("parameters")
+                                params?.keys()?.forEach { put(it, params.getString(it)) }
+                            }
+                        )
+                    )
+                }
+                JarvisMacroProtocol(
+                    id = "auto_" + System.currentTimeMillis(),
+                    name = obj.getString("name"),
+                    description = obj.getString("description"),
+                    iconName = "auto_fix_high",
+                    actions = actions
+                )
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+    }
+
+    /**
      * Executes a macro protocol sequentially with deterministic verification.
      */
     suspend fun executeProtocol(protocol: JarvisMacroProtocol): MacroExecutionReport = withContext(Dispatchers.IO) {

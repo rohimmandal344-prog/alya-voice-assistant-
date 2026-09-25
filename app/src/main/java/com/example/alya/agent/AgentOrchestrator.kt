@@ -34,6 +34,16 @@ class AgentOrchestrator(
     private val _currentTrace = MutableStateFlow<ReasoningTrace?>(null)
     val currentTrace: StateFlow<ReasoningTrace?> = _currentTrace.asStateFlow()
 
+    private val _isReasoningActive = MutableStateFlow(false)
+    val isReasoningActive: StateFlow<Boolean> = _isReasoningActive.asStateFlow()
+
+    private val superReasoningAgent = SuperReasoningAgent(
+        context = com.example.AlyaApplication.instance,
+        toolExecutor = toolExecutor,
+        memoryEngine = memoryEngine,
+        telemetryManager = telemetryManager
+    )
+
     private val _activeAgentMode = MutableStateFlow(AgentMode.REACT_AGENT)
     val activeAgentMode: StateFlow<AgentMode> = _activeAgentMode.asStateFlow()
 
@@ -57,6 +67,48 @@ class AgentOrchestrator(
         onStepProgress: ((AgentStep) -> Unit)? = null
     ): AgentResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
+        _isReasoningActive.value = true
+
+        if (mode == AgentMode.SUPER_REASONING) {
+            val report = superReasoningAgent.processSuperReasoning(
+                prompt = prompt,
+                history = history,
+                modelProvider = modelProvider
+            )
+            
+            val trace = ReasoningTrace(
+                agentMode = mode,
+                goal = prompt,
+                steps = report.steps.map { 
+                    AgentStep(
+                        stepNumber = report.steps.indexOf(it) + 1,
+                        description = it.title,
+                        thought = it.thoughtReasoning,
+                        status = when(it.status) {
+                            SuperReasoningAgent.StepStatus.SUCCESS -> AgentStepStatus.COMPLETED
+                            SuperReasoningAgent.StepStatus.FAILED -> AgentStepStatus.FAILED
+                            SuperReasoningAgent.StepStatus.EXECUTING -> AgentStepStatus.EXECUTING_ACTION
+                            else -> AgentStepStatus.REASONING
+                        },
+                        observation = it.observationResult,
+                        proposedAction = it.action
+                    )
+                },
+                totalTimeMs = report.totalDurationMs,
+                isSuccess = report.isSuccessful
+            )
+            _currentTrace.value = trace
+            _isReasoningActive.value = false
+            
+            return@withContext AgentResult(
+                replyText = report.finalAnswer,
+                finalThought = "Super Reasoning Execution Complete.",
+                trace = trace,
+                allActionsExecuted = report.steps.mapNotNull { it.action },
+                isSuccess = report.isSuccessful
+            )
+        }
+
         val steps = mutableListOf<AgentStep>()
         val executedActions = mutableListOf<StructuredAction>()
 

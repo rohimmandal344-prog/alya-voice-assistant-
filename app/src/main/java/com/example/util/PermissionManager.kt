@@ -101,22 +101,17 @@ class PermissionManager(private val context: Context) {
         return false
     }
 
-    fun checkOverlayPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true
+    fun checkNotificationPermission(): Boolean {
+        return when (PermissionRequestHelper.checkNotificationPermission(context)) {
+            is PermissionRequestHelper.PermissionStatus.Granted -> true
+            else -> false
         }
     }
 
-    fun checkNotificationPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
+    fun checkOverlayPermission(): Boolean {
+        return when (PermissionRequestHelper.checkOverlayPermission(context)) {
+            is PermissionRequestHelper.PermissionStatus.Granted -> true
+            else -> false
         }
     }
 
@@ -140,11 +135,7 @@ class PermissionManager(private val context: Context) {
 
     fun openAppSettings() {
         try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
+            context.startActivity(PermissionRequestHelper.createAppSettingsIntent(context))
         } catch (e: Exception) {
             Log.e(TAG, "Error opening app settings: ${e.message}")
         }
@@ -152,10 +143,7 @@ class PermissionManager(private val context: Context) {
 
     fun openAccessibilitySettings() {
         try {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
+            context.startActivity(PermissionRequestHelper.createAccessibilitySettingsIntent())
         } catch (e: Exception) {
             Log.e(TAG, "Error opening accessibility settings: ${e.message}")
         }
@@ -163,17 +151,25 @@ class PermissionManager(private val context: Context) {
 
     fun openOverlaySettings() {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                ).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-            }
+            context.startActivity(PermissionRequestHelper.createOverlaySettingsIntent(context))
         } catch (e: Exception) {
             Log.e(TAG, "Error opening overlay settings: ${e.message}")
+        }
+    }
+
+    fun openNotificationSettings() {
+        try {
+            context.startActivity(PermissionRequestHelper.createNotificationSettingsIntent(context))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening notification settings: ${e.message}")
+        }
+    }
+
+    fun openExactAlarmSettings() {
+        try {
+            context.startActivity(PermissionRequestHelper.createExactAlarmSettingsIntent(context))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening exact alarm settings: ${e.message}")
         }
     }
 }

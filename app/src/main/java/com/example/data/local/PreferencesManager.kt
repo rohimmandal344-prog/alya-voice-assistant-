@@ -63,6 +63,14 @@ class PreferencesManager(context: Context) {
     private val _autoAnswerCallsWithAi = MutableStateFlow(prefs.getBoolean(KEY_AUTO_ANSWER_CALLS_WITH_AI, true))
     val autoAnswerCallsWithAi: StateFlow<Boolean> = _autoAnswerCallsWithAi.asStateFlow()
 
+    private val _agentMode = MutableStateFlow(prefs.getString(KEY_AGENT_MODE, "REACT_AGENT") ?: "REACT_AGENT")
+    val agentMode: StateFlow<String> = _agentMode.asStateFlow()
+
+    fun setAgentMode(mode: String) {
+        prefs.edit().putString(KEY_AGENT_MODE, mode).apply()
+        _agentMode.value = mode
+    }
+
     fun setAutoAnswerCallsWithAi(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_ANSWER_CALLS_WITH_AI, enabled).apply()
         _autoAnswerCallsWithAi.value = enabled
@@ -383,6 +391,7 @@ class PreferencesManager(context: Context) {
         _neverWakeDuringPlayback.value = prefs.getBoolean(KEY_NEVER_WAKE_DURING_PLAYBACK, true)
         _speakerEmbeddingData.value = prefs.getString(KEY_SPEAKER_EMBEDDING, "") ?: ""
         _lastSeenVersion.value = prefs.getString(KEY_LAST_SEEN_VERSION, "") ?: ""
+        _agentMode.value = prefs.getString(KEY_AGENT_MODE, "REACT_AGENT") ?: "REACT_AGENT"
         _selfHostedBaseUrl.value = prefs.getString(KEY_SELF_HOSTED_BASE_URL, "http://10.0.2.2:11434/v1") ?: "http://10.0.2.2:11434/v1"
         _selfHostedModelName.value = prefs.getString(KEY_SELF_HOSTED_MODEL_NAME, "llama3.2") ?: "llama3.2"
         _openSourceProviderType.value = prefs.getString(KEY_AI_PROVIDER_TYPE, "LOCAL_ON_DEVICE") ?: "LOCAL_ON_DEVICE"
@@ -463,6 +472,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_PAUSE_DURING_CALLS = "key_pause_during_calls"
         private const val KEY_NEVER_WAKE_DURING_PLAYBACK = "key_never_wake_during_playback"
         private const val KEY_SPEAKER_EMBEDDING = "key_speaker_embedding"
+        private const val KEY_AGENT_MODE = "key_agent_mode"
         private const val KEY_SELF_HOSTED_BASE_URL = "key_self_hosted_base_url"
         private const val KEY_SELF_HOSTED_MODEL_NAME = "key_self_hosted_model_name"
         private const val KEY_AI_PROVIDER_TYPE = "key_ai_provider_type"

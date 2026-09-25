@@ -52,7 +52,7 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.aistudio.alya.assistant.bxmdzt"
+    applicationId = "com.aistudio.alya.assistant.kxmpzq"
     minSdk = 24
     targetSdk = 34
     versionCode = gitCommitCountProvider.get()
@@ -138,6 +138,8 @@ dependencies {
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)
+  implementation(libs.androidx.navigation.compose)
+  implementation(libs.coil.compose)
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
@@ -149,8 +151,10 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.converter.moshi)
-  // implementation(libs.firebase.ai)
-  // implementation(libs.firebase.auth)
+  implementation(libs.firebase.ai)
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
+  implementation(libs.google.generativeai)
   implementation(libs.firebase.crashlytics)
 
   // Supabase Auth & Core

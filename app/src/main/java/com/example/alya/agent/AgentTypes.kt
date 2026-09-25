@@ -12,7 +12,8 @@ enum class AgentMode(val displayName: String, val description: String) {
     CHAIN_OF_THOUGHT("Chain-of-Thought", "Step-by-step reasoning breakdown before answering"),
     REACT_AGENT("ReAct (Reason + Act)", "Interactive tool execution loop with observation feedback"),
     AUTONOMOUS_PLANNER("Autonomous Planner", "Full multi-step goal decomposition, macro execution & verification"),
-    JARVIS_EXECUTIVE("JARVIS Executive", "Proactive system telemetry, macro protocols & voice status briefings")
+    JARVIS_EXECUTIVE("JARVIS Executive", "Proactive system telemetry, macro protocols & voice status briefings"),
+    SUPER_REASONING("SUPER AGI Reasoning", "Extreme multi-agent reasoning, self-reflection & long-term memory retrieval")
 }
 
 /**
@@ -49,7 +50,8 @@ data class ReasoningTrace(
     val totalTimeMs: Long = 0,
     val tokensEvaluated: Int = 0,
     val toolsInvoked: Int = 0,
-    val reflectionNotes: String? = null
+    val reflectionNotes: String? = null,
+    val isSuccess: Boolean = true
 )
 
 /**

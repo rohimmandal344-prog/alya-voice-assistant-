@@ -1,6 +1,6 @@
 {
-  "name": "Alya Assistant",
-  "description": "A high-performance, real-time voice assistant powered by Gemini. Supports natural live conversation, barge-in, device control with wake word activation, and offline-resilient features.",
+  "name": "Alya",
+  "description": "A high-performance, real-time Hinglish AI companion powered by Gemini. Supports natural live conversation, barge-in, device control, and offline-resilient features.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

@@ -650,4 +650,13 @@ object ToolRegistry {
         val normalized = normalizeToolName(clean)
         return tools.find { it.name.equals(normalized, ignoreCase = true) }
     }
+
+    fun findToolsByIntent(intent: String): List<ToolDefinition> {
+        val lower = intent.lowercase()
+        return tools.filter { 
+            it.name.lowercase().contains(lower) || 
+            it.description.lowercase().contains(lower) ||
+            lower.contains(it.name.lowercase())
+        }
+    }
 }

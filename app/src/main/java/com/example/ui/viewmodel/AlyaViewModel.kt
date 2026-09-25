@@ -197,7 +197,26 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    init {
+        // Sync agent mode with preferences on startup
+        viewModelScope.launch {
+            repository.preferences.agentMode.collect { modeStr ->
+                try {
+                    val mode = com.example.alya.agent.AgentMode.valueOf(modeStr)
+                    repository.agentOrchestrator.setAgentMode(mode)
+                } catch (e: Exception) {
+                    Log.e("AlyaViewModel", "Invalid agent mode in prefs: $modeStr")
+                }
+            }
+        }
+    }
+
     val capabilityManager = app.capabilityManager
+
+    // EXTREME Reasoning & Agent Telemetry Trace Flows
+    val currentReasoningTrace = repository.agentOrchestrator.currentTrace
+    val activeAgentMode = repository.agentOrchestrator.activeAgentMode
+    val isSuperReasoningActive = repository.agentOrchestrator.isReasoningActive // This is assuming we add it to Orchestrator
     val capabilities: StateFlow<List<com.example.capability.CapabilityItem>> = capabilityManager.capabilities
     val healthOverview: StateFlow<com.example.capability.SystemHealthOverview> = capabilityManager.healthOverview
     val isCapabilitiesChecking: StateFlow<Boolean> = capabilityManager.isChecking

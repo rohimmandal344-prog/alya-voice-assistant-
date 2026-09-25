@@ -24,6 +24,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Alya Assistant"
+rootProject.name = "Alya"
 
 include(":app")
