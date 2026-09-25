@@ -91,8 +91,10 @@ fun VoiceModeScreen(
     val isLiveStreaming = geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Streaming ||
                           geminiLiveState is com.example.data.ai.GeminiLiveSessionState.Connected
     
-    // Direct binding to hardware MediaRecorder / AudioRecord capture state
-    val isMicActive = !isMuted && (isHardwareRecording || isListeningRecognizer || isLiveStreaming)
+    val isLiveContinuousMode by viewModel.isLiveContinuousMode.collectAsState()
+
+    // Direct binding to hardware / recognizer capture state
+    val isMicActive = !isMuted && (isListeningRecognizer || isHardwareRecording || isLiveStreaming)
 
     val partialText by viewModel.speechManager.partialResult.collectAsState()
     val speechError by viewModel.speechManager.speechError.collectAsState()
@@ -106,8 +108,8 @@ fun VoiceModeScreen(
                 isThinking -> "ALYA IS PROCESSING..."
                 isMuted -> "MICROPHONE IS MUTED"
                 isMicActive && isSpeechDetected -> "ALYA IS LISTENING (VOICE DETECTED)..."
-                isMicActive -> "ALYA IS LISTENING..."
-                else -> "ALYA IS READY..."
+                isMicActive -> if (isLiveContinuousMode) "LIVE REAL-TIME LISTENING..." else "TAP ORB TO SPEAK..."
+                else -> if (isLiveContinuousMode) "LIVE CONVERSATION ACTIVE..." else "TAP TO SPEAK..."
             }
         }
     }
@@ -119,8 +121,8 @@ fun VoiceModeScreen(
                 isThinking -> "Processing..."
                 isMuted -> "Mic Muted"
                 isMicActive && isSpeechDetected -> "Listening (Active)"
-                isMicActive -> "Listening (Live Mic)"
-                else -> "Live Conversation"
+                isMicActive -> if (isLiveContinuousMode) "Live Listening" else "Tap to Speak"
+                else -> if (isLiveContinuousMode) "Live Mode" else "Standard Mode"
             }
         }
     }
@@ -238,25 +240,72 @@ fun VoiceModeScreen(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                com.example.ui.components.ConnectionStatusPill(
-                    quality = callQuality,
-                    onClick = { viewModel.toggleCallQualityTest() }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                // Interactive Live Mode / Standard Mode Section
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isLiveContinuousMode)
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable {
+                            viewModel.setLiveContinuousMode(!isLiveContinuousMode)
+                        }
+                        .testTag("live_mode_toggle_section")
                 ) {
-                    Text(
-                        text = statusBadgeText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        // Pulsing status dot
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when {
+                                        isMuted -> MaterialTheme.colorScheme.error
+                                        isSpeaking -> Color(0xFF64B5F6)
+                                        isThinking -> Color(0xFFFFB74D)
+                                        isMicActive && isSpeechDetected -> Color(0xFF00E676)
+                                        isLiveContinuousMode -> Color(0xFF4CAF50)
+                                        else -> MaterialTheme.colorScheme.outline
+                                    }
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = if (isLiveContinuousMode) "LIVE MODE" else "STANDARD MODE",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isLiveContinuousMode)
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = when {
+                                    isMuted -> "Mic Muted"
+                                    isSpeaking -> "Alya Speaking"
+                                    isThinking -> "Instant NLU"
+                                    isMicActive && isSpeechDetected -> "User Speaking"
+                                    isMicActive -> if (isLiveContinuousMode) "Listening (Active)" else "Tap to Speak"
+                                    else -> "Ready"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isLiveContinuousMode)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.outline,
+                                fontSize = 9.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.width(6.dp))
                 IconButton(

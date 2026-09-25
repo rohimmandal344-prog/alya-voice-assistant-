@@ -264,236 +264,246 @@ class SpeechRecognitionManager(private val context: Context) {
 
         try {
             suppressSystemSounds(true)
-            cleanupRecognizer()
 
-            val recognizerInstance = try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-                    Log.i(TAG, "Creating On-Device SpeechRecognizer for offline and low-latency operation.")
-                    SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-                } else {
-                    SpeechRecognizer.createSpeechRecognizer(context)
-                }
-            } catch (e: Exception) {
-                try {
-                    SpeechRecognizer.createSpeechRecognizer(context)
-                } catch (e2: Exception) {
-                    Log.e(TAG, "Failed to create SpeechRecognizer instance", e2)
-                    val mappedErr = com.example.voice.error.VoiceError(
-                        type = com.example.voice.error.VoiceErrorType.RECOGNIZER_GENERIC_FAILURE,
-                        message = "Could not initialize Speech Recognizer service on this device.",
-                        suggestedAction = "Check microphone permissions or ensure Google Speech Services are available.",
-                        severity = com.example.voice.error.VoiceErrorSeverity.FATAL
-                    )
-                    com.example.voice.error.VoiceErrorRegistry.instance.publishError(mappedErr)
-                    _speechError.value = mappedErr.message
-                    _isListening.value = false
-                    com.example.audio.AudioSessionManager.releaseSession(com.example.audio.AudioSessionType.SPEECH_RECOGNITION)
-                    return
-                }
-            }
-
-            speechRecognizer = recognizerInstance.apply {
-                com.example.audio.AlyaAudioManager.getInstance(context).registerMicrophoneHolder("SpeechRecognitionManager") {
-                    stopListening()
-                }
-                setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: Bundle?) {
-                        _isListening.value = true
-                        _speechError.value = null
-                        com.example.voice.error.VoiceErrorRegistry.instance.clearActiveError()
-                        languageFallbackAttempts = 0
-                        armWatchdog(8000L) // Longer watchdog for initial readiness
+            if (speechRecognizer == null) {
+                val recognizerInstance = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                        Log.i(TAG, "Creating On-Device SpeechRecognizer for offline and low-latency operation.")
+                        SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                    } else {
+                        SpeechRecognizer.createSpeechRecognizer(context)
                     }
-
-                    override fun onBeginningOfSpeech() {
-                        _isListening.value = true
-                        _speechError.value = null
-                        com.example.voice.error.VoiceErrorRegistry.instance.clearActiveError()
-                        onUserBeganSpeaking?.invoke()
-                        scope.launch { _userBeganSpeakingFlow.emit(Unit) }
-                        armWatchdog(15000L) // User is talking, give them time
+                } catch (e: Exception) {
+                    try {
+                        SpeechRecognizer.createSpeechRecognizer(context)
+                    } catch (e2: Exception) {
+                        Log.e(TAG, "Failed to create SpeechRecognizer instance", e2)
+                        val mappedErr = com.example.voice.error.VoiceError(
+                            type = com.example.voice.error.VoiceErrorType.RECOGNIZER_GENERIC_FAILURE,
+                            message = "Could not initialize Speech Recognizer service on this device.",
+                            suggestedAction = "Check microphone permissions or ensure Google Speech Services are available.",
+                            severity = com.example.voice.error.VoiceErrorSeverity.FATAL
+                        )
+                        com.example.voice.error.VoiceErrorRegistry.instance.publishError(mappedErr)
+                        _speechError.value = mappedErr.message
+                        _isListening.value = false
+                        com.example.audio.AudioSessionManager.releaseSession(com.example.audio.AudioSessionType.SPEECH_RECOGNITION)
+                        return
                     }
+                }
 
-                    override fun onRmsChanged(rmsdB: Float) {
-                        val now = System.currentTimeMillis()
-                        smoothedRms = (0.7f * smoothedRms) + (0.3f * rmsdB)
-                        if (now - lastRmsUpdateTime > 80L) {
-                            lastRmsUpdateTime = now
-                            _rmsDb.value = smoothedRms
+                speechRecognizer = recognizerInstance.apply {
+                    com.example.audio.AlyaAudioManager.getInstance(context).registerMicrophoneHolder("SpeechRecognitionManager") {
+                        stopListening()
+                    }
+                    setRecognitionListener(object : RecognitionListener {
+                        override fun onReadyForSpeech(params: Bundle?) {
+                            _isListening.value = true
+                            _speechError.value = null
+                            com.example.voice.error.VoiceErrorRegistry.instance.clearActiveError()
+                            languageFallbackAttempts = 0
+                            armWatchdog(8000L) // Longer watchdog for initial readiness
                         }
-                    }
 
-                    override fun onBufferReceived(buffer: ByteArray?) {}
+                        override fun onBeginningOfSpeech() {
+                            _isListening.value = true
+                            _speechError.value = null
+                            com.example.voice.error.VoiceErrorRegistry.instance.clearActiveError()
+                            onUserBeganSpeaking?.invoke()
+                            scope.launch { _userBeganSpeakingFlow.emit(Unit) }
+                            armWatchdog(15000L) // User is talking, give them time
+                        }
 
-                    override fun onEndOfSpeech() {
-                        disarmWatchdog()
-                        _isListening.value = false
-                        _rmsDb.value = 0f
-                    }
+                        override fun onRmsChanged(rmsdB: Float) {
+                            val now = System.currentTimeMillis()
+                            smoothedRms = (0.7f * smoothedRms) + (0.3f * rmsdB)
+                            if (now - lastRmsUpdateTime > 80L) {
+                                lastRmsUpdateTime = now
+                                _rmsDb.value = smoothedRms
+                            }
+                        }
 
-                    override fun onError(error: Int) {
-                        disarmWatchdog()
-                        _isListening.value = false
-                        _rmsDb.value = 0f
+                        override fun onBufferReceived(buffer: ByteArray?) {}
 
-                        Log.d(TAG, "SpeechRecognizer onError: $error")
+                        override fun onEndOfSpeech() {
+                            disarmWatchdog()
+                            _isListening.value = false
+                            _rmsDb.value = 0f
+                        }
 
-                        val isOnline = com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
+                        override fun onError(error: Int) {
+                            disarmWatchdog()
+                            _isListening.value = false
+                            _rmsDb.value = 0f
 
-                        // If error 13 (ERROR_LANGUAGE_UNAVAILABLE) or 11 occurs with offline preference,
-                        // the device does not have offline language pack installed: automatically fallback to standard recognition!
-                        if (error == 13 || (error == 11 && !isOnline)) {
-                            Log.w(TAG, "Offline language model not available on device for '$currentLanguage' (code $error). Falling back to online/standard recognition seamlessly.")
-                            offlineUnavailableLanguages.add(currentLanguage ?: "default")
-                            cleanupRecognizer()
-                            if (isContinuousMode) {
-                                mainHandler.postDelayed({
+                            Log.d(TAG, "SpeechRecognizer onError: $error")
+
+                            val isOnline = com.example.voice.error.VoiceErrorRegistry.instance.isOnline.value
+
+                            // If error 13 (ERROR_LANGUAGE_UNAVAILABLE) or 11 occurs with offline preference,
+                            // the device does not have offline language pack installed: automatically fallback to standard recognition!
+                            if (error == 13 || (error == 11 && !isOnline)) {
+                                Log.w(TAG, "Offline language model not available on device for '$currentLanguage' (code $error). Falling back to online/standard recognition seamlessly.")
+                                offlineUnavailableLanguages.add(currentLanguage ?: "default")
+                                cleanupRecognizer()
+                                if (isContinuousMode) {
+                                    mainHandler.postDelayed({
+                                        if (isContinuousMode && !_isListening.value) {
+                                            this@SpeechRecognitionManager.startListening(currentLanguage)
+                                        }
+                                    }, 300L)
+                                }
+                                return
+                            }
+
+                            // If offline and error is network-related, gracefully handle without publishing noisy speech TTS alerts
+                            if (!isOnline && (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)) {
+                                Log.w(TAG, "Speech recognition network error while offline (error $error). Staying in local offline mode.")
+                                try { speechRecognizer?.cancel() } catch (_: Exception) {}
+                                if (isContinuousMode) {
+                                    mainHandler.postDelayed({
+                                        if (isContinuousMode && !_isListening.value) {
+                                            this@SpeechRecognitionManager.startListening(currentLanguage)
+                                        }
+                                    }, 800L)
+                                } else {
+                                    onSilenceTimeout?.invoke()
+                                }
+                                return
+                            }
+
+                            // Handle Silence or Timeout gracefully in continuous mode WITHOUT destroying the recognizer instance!
+                            val isSilenceOrTimeout = (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                                    error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+
+                            if (isSilenceOrTimeout) {
+                                try { speechRecognizer?.cancel() } catch (_: Exception) {}
+                                if (isContinuousMode) {
+                                    // Smoothly re-arm listening after debounce without thrashing recognizer lifecycle or flickering mic
+                                    mainHandler.postDelayed({
+                                        if (isContinuousMode && !_isListening.value) {
+                                            this@SpeechRecognitionManager.startListening(currentLanguage)
+                                        }
+                                    }, 350L)
+                                } else {
+                                    onSilenceTimeout?.invoke()
+                                }
+                                return
+                            }
+
+                            // 0. Classify and register the error in the central registry
+                            val mappedError = com.example.voice.error.VoiceErrorRegistry.instance.mapSpeechRecognizerError(error)
+                            com.example.voice.error.VoiceErrorRegistry.instance.publishError(mappedError)
+
+                            val recoveryAction = com.example.voice.error.ErrorRecoveryHandler.getInstance(context)
+                                .mapSpeechRecognizerError(error) {
                                     if (isContinuousMode && !_isListening.value) {
                                         this@SpeechRecognitionManager.startListening(currentLanguage)
                                     }
-                                }, 300L)
+                                }
+                            if (error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY && error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                                _speechError.value = recoveryAction
                             }
-                            return
-                        }
 
-                        // If offline and error is network-related, gracefully handle without publishing noisy speech TTS alerts
-                        if (!isOnline && (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)) {
-                            Log.w(TAG, "Speech recognition network error while offline (error $error). Staying in local offline mode.")
-                            cleanupRecognizer()
-                            if (isContinuousMode) {
-                                mainHandler.postDelayed({
-                                    if (isContinuousMode && !_isListening.value) {
+                            // Handle Recognizer Busy with bounded backoff retry
+                            if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                                if (busyRetryCount < maxBusyRetries) {
+                                    busyRetryCount++
+                                    val delay = busyRetryCount * 500L
+                                    Log.w(TAG, "Recognizer busy. Retrying in ${delay}ms (Attempt $busyRetryCount)")
+                                    try { speechRecognizer?.cancel() } catch (_: Exception) {}
+                                    mainHandler.postDelayed({
                                         this@SpeechRecognitionManager.startListening(currentLanguage)
-                                    }
-                                }, 1000L)
-                            } else {
-                                onSilenceTimeout?.invoke()
-                            }
-                            return
-                        }
-
-                        // 0. Classify and register the error in the central registry
-                        val mappedError = com.example.voice.error.VoiceErrorRegistry.instance.mapSpeechRecognizerError(error)
-                        com.example.voice.error.VoiceErrorRegistry.instance.publishError(mappedError)
-
-                        val recoveryAction = com.example.voice.error.ErrorRecoveryHandler.getInstance(context)
-                            .mapSpeechRecognizerError(error) {
-                                if (isContinuousMode && !_isListening.value) {
-                                    this@SpeechRecognitionManager.startListening(currentLanguage)
+                                    }, delay)
+                                    return
+                                } else {
+                                    Log.e(TAG, "Recognizer busy after maximum retries. Cleaning up.")
+                                    busyRetryCount = 0
+                                    _speechError.value = "Microphone is being used by another app."
+                                    cleanupRecognizer()
+                                    return
                                 }
                             }
-                        if (error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY && error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                            _speechError.value = recoveryAction
-                        }
+                            busyRetryCount = 0
 
-                        // Handle Recognizer Busy with bounded backoff retry
-                        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
-                            if (busyRetryCount < maxBusyRetries) {
-                                busyRetryCount++
-                                val delay = busyRetryCount * 500L
-                                Log.w(TAG, "Recognizer busy. Retrying in ${delay}ms (Attempt $busyRetryCount)")
-                                mainHandler.postDelayed({
-                                    this@SpeechRecognitionManager.startListening(currentLanguage)
-                                }, delay)
-                                return
-                            } else {
-                                Log.e(TAG, "Recognizer busy after maximum retries. Cleaning up.")
-                                busyRetryCount = 0
-                                _speechError.value = "Microphone is being used by another app."
+                            // 1. Language unavailable / not supported (Error 13 or 12)
+                            if (error == ERROR_LANGUAGE_UNAVAILABLE || error == ERROR_LANGUAGE_NOT_SUPPORTED) {
                                 cleanupRecognizer()
-                                return
+                                if (languageFallbackAttempts < 2) {
+                                    languageFallbackAttempts++
+                                    fallbackToSystemDefault = true
+                                    Log.w(TAG, "Speech language unavailable (error $error). Switching to system default recognizer mode.")
+                                    _speechError.value = null
+                                    mainHandler.postDelayed({
+                                        this@SpeechRecognitionManager.startListening(null)
+                                    }, 250L)
+                                    return
+                                }
                             }
-                        }
-                        busyRetryCount = 0
 
-                        // 1. Language unavailable / not supported (Error 13 or 12)
-                        // Automatically fall back to system default recognizer mode seamlessly.
-                        if (error == ERROR_LANGUAGE_UNAVAILABLE || error == ERROR_LANGUAGE_NOT_SUPPORTED) {
+                            // Clean up recognizer resources on unrecoverable error
                             cleanupRecognizer()
-                            if (languageFallbackAttempts < 2) {
-                                languageFallbackAttempts++
-                                fallbackToSystemDefault = true
-                                Log.w(TAG, "Speech language unavailable (error $error). Switching to system default recognizer mode.")
-                                _speechError.value = null
-                                mainHandler.postDelayed({
-                                    this@SpeechRecognitionManager.startListening(null)
-                                }, 250L)
-                                return
-                            }
-                        }
-
-                        val isSilenceOrTimeout = (error == SpeechRecognizer.ERROR_NO_MATCH ||
-                                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
-
-                        // 2. Clean up recognizer resources on error
-                        cleanupRecognizer()
-
-                        if (isSilenceOrTimeout) {
-                            if (isContinuousMode) {
-                                // Continuous live mode: smoothly re-arm listening after brief debounce without thrashing
-                                mainHandler.postDelayed({
-                                    if (isContinuousMode && !_isListening.value) {
-                                        this@SpeechRecognitionManager.startListening(currentLanguage)
-                                    }
-                                }, 300L)
-                            } else {
-                                onSilenceTimeout?.invoke()
-                            }
-                        } else {
                             if (!isContinuousMode) {
                                 _speechError.value = mappedError.message
                             }
                         }
-                    }
 
-                    override fun onResults(results: Bundle?) {
-                        disarmWatchdog()
-                        _isListening.value = false
-                        _rmsDb.value = 0f
-                        _speechError.value = null
-                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        val text = matches?.firstOrNull()?.trim() ?: ""
-                        _partialResult.value = ""
+                        override fun onResults(results: Bundle?) {
+                            disarmWatchdog()
+                            _isListening.value = false
+                            _rmsDb.value = 0f
+                            _speechError.value = null
+                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            val text = matches?.firstOrNull()?.trim() ?: ""
+                            _partialResult.value = ""
 
-                        Log.d(TAG, "Final Result: $text")
+                            Log.d(TAG, "Final Result: $text")
 
-                        if (text.isNotBlank()) {
-                            scope.launch { _finalResultFlow.emit(text) }
-                            onFinalSpeechResult?.invoke(text)
-                        } else if (isContinuousMode) {
-                            // Blank result in continuous conversation: smoothly re-arm listener
-                            mainHandler.postDelayed({
-                                if (isContinuousMode && !_isListening.value) {
-                                    this@SpeechRecognitionManager.startListening(currentLanguage)
-                                }
-                            }, 300L)
-                        }
-                    }
-
-                    override fun onPartialResults(partialResults: Bundle?) {
-                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        matches?.firstOrNull()?.let { text ->
-                            _partialResult.value = text
                             if (text.isNotBlank()) {
-                                _speechError.value = null
-                                onUserBeganSpeaking?.invoke()
-                                disarmWatchdog()
-                                armWatchdog(10000L) // Reset watchdog on speech
+                                scope.launch { _finalResultFlow.emit(text) }
+                                onFinalSpeechResult?.invoke(text)
+                            } else if (isContinuousMode) {
+                                // Blank result in continuous conversation: smoothly re-arm listener without destroying
+                                try { speechRecognizer?.cancel() } catch (_: Exception) {}
+                                mainHandler.postDelayed({
+                                    if (isContinuousMode && !_isListening.value) {
+                                        this@SpeechRecognitionManager.startListening(currentLanguage)
+                                    }
+                                }, 350L)
                             }
                         }
-                    }
 
-                    override fun onEvent(eventType: Int, params: Bundle?) {}
-                })
+                        override fun onPartialResults(partialResults: Bundle?) {
+                            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            matches?.firstOrNull()?.let { text ->
+                                _partialResult.value = text
+                                if (text.isNotBlank()) {
+                                    _speechError.value = null
+                                    onUserBeganSpeaking?.invoke()
+                                    disarmWatchdog()
+                                    armWatchdog(10000L) // Reset watchdog on speech
+                                }
+                            }
+                        }
+
+                        override fun onEvent(eventType: Int, params: Bundle?) {}
+                    })
+                }
             }
 
             // Build rich dynamic speech recognition intent parameters for high-accuracy multilingual recognition
             val intent = buildRecognitionIntent(targetLocale, fallbackToSystemDefault)
             com.example.voice.error.VoiceErrorRegistry.instance.runSafely("SpeechRecognizer", Unit) {
-                speechRecognizer?.startListening(intent)
+                try {
+                    speechRecognizer?.cancel()
+                    speechRecognizer?.startListening(intent)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Exception starting listening, recreating recognizer: ${e.message}")
+                    cleanupRecognizer()
+                }
             }
             _isListening.value = true
-            armWatchdog(5000L)
+            armWatchdog(8000L)
         } catch (e: Exception) {
             val mappedErr = com.example.voice.error.VoiceError(
                 type = com.example.voice.error.VoiceErrorType.RECOGNIZER_GENERIC_FAILURE,
@@ -576,13 +586,21 @@ class SpeechRecognitionManager(private val context: Context) {
         mainHandler.removeCallbacks(watchdogRunnable)
     }
 
-    fun stopListening() {
+    fun stopListening(destroyInstance: Boolean = false) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { stopListening() }
+            mainHandler.post { stopListening(destroyInstance) }
             return
         }
 
-        cleanupRecognizer()
+        disarmWatchdog()
+        if (destroyInstance) {
+            cleanupRecognizer()
+        } else {
+            try {
+                speechRecognizer?.stopListening()
+                speechRecognizer?.cancel()
+            } catch (_: Exception) {}
+        }
         suppressSystemSounds(false)
         _isListening.value = false
         _rmsDb.value = 0f

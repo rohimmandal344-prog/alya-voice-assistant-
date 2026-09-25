@@ -119,7 +119,6 @@ fun SettingsScreen(
     val responseStyle by preferencesManager.responseStyle.collectAsState()
     val updateCheckUrl by preferencesManager.updateCheckUrl.collectAsState()
     val fpsBoostEnabled by preferencesManager.fpsBoostEnabled.collectAsState()
-    val openSourceBaseUrl by preferencesManager.openSourceBaseUrl.collectAsState()
     val openSourceModelName by preferencesManager.openSourceModelName.collectAsState()
     val openSourceProviderType by preferencesManager.openSourceProviderType.collectAsState()
 
@@ -291,19 +290,25 @@ fun SettingsScreen(
                 }
 
                 if (openSourceProviderType == "SELF_HOSTED") {
-                    // Optional Endpoint URL Field
-                    var editedUrl by remember(openSourceBaseUrl) { mutableStateOf(openSourceBaseUrl) }
-                    OutlinedTextField(
-                        value = editedUrl,
-                        onValueChange = {
-                            editedUrl = it
-                            preferencesManager.setOpenSourceBaseUrl(it)
-                        },
-                        label = { Text("Optional Server Base URL (REST/SSE)") },
-                        placeholder = { Text("http://10.0.2.2:11434/v1") },
-                        singleLine = true,
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Local Inference Auto-Discovery",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Automatically binds to local Ollama / llama.cpp inference runtimes on device loopback. Zero external API keys, URLs, or environment variables required.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
 
                     // Optional Model Name Field with Quick Presets
                     var editedModel by remember(openSourceModelName) { mutableStateOf(openSourceModelName) }
@@ -623,10 +628,8 @@ fun SettingsScreen(
                     }
                 }
 
-                // Hybrid Voice Bridge (Python Server + EdgeTTS) for warm, soft human voice
+                // Hybrid Voice Bridge (Local Engine + EdgeTTS) for warm, soft human voice
                 val isBridgeModeEnabled by preferencesManager.bridgeModeEnabled.collectAsState()
-                val bridgeServerUrl by preferencesManager.bridgeServerUrl.collectAsState()
-                var bridgeUrlText by remember { mutableStateOf(bridgeServerUrl) }
 
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -653,24 +656,18 @@ fun SettingsScreen(
                         }
                         
                         if (isBridgeModeEnabled) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = bridgeUrlText,
-                                onValueChange = { bridgeUrlText = it },
-                                label = { Text("Python Bridge Server URL") },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("ws://10.0.2.2:8000/ws/chat") },
-                                singleLine = true,
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
                                 shape = RoundedCornerShape(8.dp),
-                                textStyle = MaterialTheme.typography.bodySmall
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = { preferencesManager.setBridgeServerUrl(bridgeUrlText) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Apply Server Configuration")
+                                Text(
+                                    text = "Auto-configured: Automatically binds to local loopback voice synthesis engine. Zero manual URLs or environment variables required.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(10.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

@@ -469,6 +469,7 @@ class PreferencesManager(context: Context) {
         const val DEFAULT_UPDATE_URL = "https://api.github.com/repos/alya-assistant/alya/releases/latest"
 
         val AVAILABLE_VOICE_PERSONAS = listOf(
+            VoicePersonaOption("ALYA_EXPRESSIVE_WARM", "Alya • Expressive Warmth (Realistic)", "Friendly, expressive modulation, acoustic clarity & natural micro-pauses"),
             VoicePersonaOption("KORE", "Kore • Natural & Warm", "Balanced, human-like warm expressive tone"),
             VoicePersonaOption("GENTLE_SOFT", "Alya • Gentle & Soft", "Soothing, calm, melodic cadence"),
             VoicePersonaOption("CRISP_CONFIDENT", "Alya • Crisp & Confident", "Clear, articulate executive tone"),

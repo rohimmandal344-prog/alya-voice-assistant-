@@ -276,6 +276,10 @@ object LocalDeviceControlRegistry {
             }
         }
 
+        registerHandler("toggle_wifi_auto") { context, params ->
+            execute("toggle_wifi", context, params) ?: ToolExecutionResult(false, "Could not control Wi-Fi.")
+        }
+
         // Register Wi-Fi Status Checker
         registerHandler("check_wifi_status") { context, _ ->
             try {
@@ -397,6 +401,10 @@ object LocalDeviceControlRegistry {
             } catch (e: Exception) {
                 ToolExecutionResult(false, "Could not control Bluetooth: ${e.message}")
             }
+        }
+
+        registerHandler("toggle_bluetooth_auto") { context, params ->
+            execute("toggle_bluetooth", context, params) ?: ToolExecutionResult(false, "Could not control Bluetooth.")
         }
 
         // Register Go Home Control

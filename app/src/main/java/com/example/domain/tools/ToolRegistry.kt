@@ -603,8 +603,51 @@ object ToolRegistry {
             parameters = emptyMap(),
             riskLevel = ToolRiskLevel.LOW,
             defaultRequiresConfirmation = false
+        ),
+        ToolDefinition(
+            name = "toggle_bluetooth_auto",
+            description = "Automatically toggles Bluetooth on or off via system adapter or accessibility automation.",
+            parameters = mapOf("state" to "'on' or 'off'"),
+            riskLevel = ToolRiskLevel.LOW,
+            defaultRequiresConfirmation = false
+        ),
+        ToolDefinition(
+            name = "toggle_wifi_auto",
+            description = "Automatically toggles Wi-Fi on or off via system adapter or accessibility automation.",
+            parameters = mapOf("state" to "'on' or 'off'"),
+            riskLevel = ToolRiskLevel.LOW,
+            defaultRequiresConfirmation = false
+        ),
+        ToolDefinition(
+            name = "connect_wifi_auto",
+            description = "Automatically connects to available or specified Wi-Fi network via accessibility automation.",
+            parameters = mapOf("network" to "Optional SSID name"),
+            riskLevel = ToolRiskLevel.LOW,
+            defaultRequiresConfirmation = false
         )
     )
 
-    fun findTool(name: String): ToolDefinition? = tools.find { it.name.equals(name, ignoreCase = true) }
+    fun normalizeToolName(name: String): String {
+        val clean = name.trim().lowercase()
+        return when (clean) {
+            "toggle_bluetooth_auto" -> "toggle_bluetooth"
+            "toggle_wifi_auto" -> "toggle_wifi"
+            "connect_wifi_auto" -> "turn_on_and_connect_wifi"
+            "turn_off_wifi", "turn_on_wifi" -> "toggle_wifi"
+            "turn_off_bluetooth", "turn_on_bluetooth" -> "toggle_bluetooth"
+            "torch_on", "torch_off", "flashlight_on", "flashlight_off" -> "toggle_flashlight"
+            "volume_up", "volume_down", "set_volume" -> "control_volume"
+            "brightness_up", "brightness_down", "set_brightness" -> "control_brightness"
+            "open_application", "launch_app", "start_app" -> "open_app"
+            else -> if (clean.endsWith("_auto")) clean.removeSuffix("_auto") else clean
+        }
+    }
+
+    fun findTool(name: String): ToolDefinition? {
+        val clean = name.trim()
+        val direct = tools.find { it.name.equals(clean, ignoreCase = true) }
+        if (direct != null) return direct
+        val normalized = normalizeToolName(clean)
+        return tools.find { it.name.equals(normalized, ignoreCase = true) }
+    }
 }

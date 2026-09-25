@@ -673,6 +673,18 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
     private val _isVoiceMode = MutableStateFlow(false)
     val isVoiceMode: StateFlow<Boolean> = _isVoiceMode.asStateFlow()
 
+    private val _isLiveContinuousMode = MutableStateFlow(true)
+    val isLiveContinuousMode: StateFlow<Boolean> = _isLiveContinuousMode.asStateFlow()
+
+    fun setLiveContinuousMode(enable: Boolean) {
+        _isLiveContinuousMode.value = enable
+        speechManager.isContinuousMode = enable
+        if (enable && _isVoiceMode.value && !_isMuted.value && !ttsManager.isSpeaking.value && !_isThinking.value) {
+            startListening()
+        }
+        Log.i("AlyaViewModel", "Live conversation mode set: continuous=$enable")
+    }
+
     private val _assistantState = MutableStateFlow<AssistantState>(AssistantState.Idle)
     val assistantState: StateFlow<AssistantState> = _assistantState.asStateFlow()
 
@@ -1238,8 +1250,6 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
                     // CRITICAL: Ensure clean microphone state before re-requesting
                     speechManager.stopListening()
                     app.audioCaptureManager.stopCapture()
-                    
-                    app.audioCaptureManager.startCapture(com.example.voice.microphone.MicState.ACTIVE_VOICE_SESSION)
                     app.audioCaptureManager.flushAudioBufferOnWakeWord()
 
                     val cleanKw = keyword.replaceFirstChar { it.uppercase() }
@@ -1748,9 +1758,6 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         if (sessionManager.isNetworkAvailable.value || geminiLiveClient.isSessionActive()) {
             Log.i("AlyaViewModel", "Preventing standby transition during active Live Conversation session to preserve ultra-low latency streaming.")
             _isVoiceStandby.value = false
-            if (!app.audioCaptureManager.isCaptureActive.value && !_isMuted.value) {
-                app.audioCaptureManager.startCapture(com.example.voice.microphone.MicState.ACTIVE_VOICE_SESSION)
-            }
             return
         }
         Log.i("AlyaViewModel", "Entering low-power standby mode. Stopping speech recognition.")
@@ -1772,10 +1779,8 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         _isVoiceStandby.value = false
         wakeWordManager.stop()
         sessionManager.onLiveVoiceStarted()
+        app.audioCaptureManager.stopCapture()
         if (_isVoiceMode.value && !_isMuted.value) {
-            if (!app.audioCaptureManager.isCaptureActive.value) {
-                app.audioCaptureManager.startCapture(com.example.voice.microphone.MicState.ACTIVE_VOICE_SESSION)
-            }
             if (!geminiLiveClient.isSessionActive() && triggerSpeech) {
                 speechManager.isContinuousMode = true
                 startListening(isWakeWordTrigger = isWakeWordTrigger)
@@ -1861,20 +1866,23 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         clearSubtitles()
         com.example.voice.error.VoiceErrorRegistry.instance.registerNetworkCallback(app)
         
+        // Ensure AudioCaptureManager is stopped so SpeechRecognitionManager has exclusive microphone ownership!
+        app.audioCaptureManager.stopCapture()
+
         // Request dedicated live voice audio session to claim exclusive microphone ownership
         com.example.audio.AudioSessionManager.requestSession(com.example.audio.AudioSessionType.LIVE_VOICE_SESSION)
-        com.example.audio.AudioSessionManager.requestSession(com.example.audio.AudioSessionType.CALL_ASSISTANT)
         
         wakeWordManager.isSuppressed = true
         wakeWordManager.stop()
         _isVoiceMode.value = true
+        _isLiveContinuousMode.value = true
         _isMuted.value = false // Microphone active by default throughout the live call
         _isThinking.value = false
         _isVoiceStandby.value = false
         _liveAssistantTranscript.value = ""
         speechManager.clearError()
-        speechManager.stopListening()
-        speechManager.isContinuousMode = false
+        speechManager.stopListening(destroyInstance = false)
+        speechManager.isContinuousMode = true
         _currentScreen.value = AssistantScreen.VOICE_MODE
         audioDeviceManager.requestAudioFocus()
         audioDeviceManager.setSpeakerphone(true) // Default to speakerphone for live conversation
@@ -1891,56 +1899,8 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         val activeLang = _currentLanguageLocale.value.ifBlank { repository.preferences.voiceLanguage.value }
         val greetingText = getLiveConversationGreeting(activeLang)
 
-        // Start real hardware microphone audio capture for live stream to Gemini Live
-        app.audioCaptureManager.stopCapture()
-        app.audioCaptureManager.startCapture(com.example.voice.microphone.MicState.ACTIVE_VOICE_SESSION)
-
-        // If online, prepare Gemini Live connection with high-quality real female voice
-        if (sessionManager.isNetworkAvailable.value) {
-            try {
-                geminiLiveClient.attachAudioTrackPlayer(pcmAudioPlayer)
-                val prefPersona = repository.preferences.voicePersona.value
-                val personaToUse = if (prefPersona.isBlank() || prefPersona == "ALYA_ANIME_RUSSIAN") "KORE" else prefPersona
-                val geminiVoice = when (personaToUse.uppercase()) {
-                    "KORE" -> "Kore"
-                    "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION", "WARM_SOFT", "ORIGINAL_HUMAN" -> "Kore"
-                    "CRISP_CONFIDENT", "EXECUTIVE", "ALYA_EXECUTIVE_CRISP" -> "Aoede"
-                    "LIVELY_PLAYFUL", "ENERGETIC" -> "Aoede"
-                    "SWEET_COMPANION", "ANIME_SWEET" -> "Kore"
-                    else -> "Kore"
-                }
-
-                val systemPrompt = com.example.data.ai.AiPersonality.buildSystemPrompt(
-                    isVoiceMode = true,
-                    language = activeLang,
-                    persona = personaToUse
-                )
-                
-                val tools = getGeminiLiveTools()
-                geminiLiveClient.connect(
-                    systemInstruction = systemPrompt,
-                    targetLanguage = activeLang,
-                    voiceName = geminiVoice,
-                    tools = tools
-                )
-                viewModelScope.launch {
-                    kotlinx.coroutines.delay(2500)
-                    if (_isVoiceMode.value && !geminiLiveClient.isSessionActive() && !_isMuted.value && !speechManager.isListening.value) {
-                        Log.i("AlyaViewModel", "Gemini Live not yet active; starting local continuous speech recognition fallback.")
-                        speechManager.isContinuousMode = true
-                        startListening()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w("AlyaViewModel", "Gemini Live background init notice: ${e.message}")
-                speechManager.isContinuousMode = true
-                speakResponse(greetingText)
-            }
-        } else {
-            // Offline fallback greeting via high-quality local female TTS
-            speechManager.isContinuousMode = true
-            speakResponse(greetingText)
-        }
+        // Instant ultra-low latency live voice start: speak greeting and begin continuous turn-taking
+        speakResponse(greetingText)
     }
 
     private fun getLiveConversationGreeting(language: String): String {
@@ -2177,6 +2137,7 @@ class AlyaViewModel(application: Application) : AndroidViewModel(application) {
         
         // Centralized clean release of Microphone, Audio Focus, Network Sockets, and Wake word via SessionManager
         sessionManager.releaseActiveSession()
+        speechManager.stopListening(destroyInstance = true)
         
         ttsManager.stop()
         val soundEffects = repository.preferences.soundEffectsEnabled.value

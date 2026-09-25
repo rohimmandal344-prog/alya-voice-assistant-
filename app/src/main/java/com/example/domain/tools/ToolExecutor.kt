@@ -69,12 +69,16 @@ class ToolExecutor(private val context: Context) {
         }
 
         // 3. Execute tool
+        val normToolName = ToolRegistry.normalizeToolName(action.toolName)
         return try {
             if (LocalDeviceControlRegistry.hasHandler(action.toolName)) {
                 LocalDeviceControlRegistry.execute(action.toolName, context, action.parameters)
                     ?: ToolExecutionResult(false, "Local handler failed.")
+            } else if (LocalDeviceControlRegistry.hasHandler(normToolName)) {
+                LocalDeviceControlRegistry.execute(normToolName, context, action.parameters)
+                    ?: ToolExecutionResult(false, "Local handler failed.")
             } else {
-                when (action.toolName) {
+                when (normToolName) {
                     "manage_call" -> {
                         val subAction = action.parameters["action"] ?: action.parameters["intent"] ?: "answer_call"
                         when (subAction.lowercase().trim()) {

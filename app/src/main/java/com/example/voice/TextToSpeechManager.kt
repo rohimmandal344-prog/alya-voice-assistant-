@@ -120,21 +120,24 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
 
         // Persona-tailored voice mapping: maps (Language Code, Persona ID) to distinct, prioritized real neural female voices
         val LANGUAGE_PERSONA_VOICE_MAP: Map<Pair<String, String>, List<String>> = mapOf(
-            // English personas - prioritizing en-us-x-iol-local (softest female), en-us-x-tpf-local and high-fidelity neural/journey
+            // English personas - prioritizing top natural neural female voices
+            Pair("en", "ALYA_EXPRESSIVE_WARM") to listOf("en-us-x-sfg-network", "en-us-x-iol-network", "en-us-x-iol-local", "en-us-x-tpf-local", "en-us-neural2-f", "en-us-journey-f"),
             Pair("en", "KORE") to listOf("en-us-x-iol-local", "en-us-x-tpf-local", "en-us-neural2-f", "en-us-wavenet-f", "en-us-journey-f"),
             Pair("en", "GENTLE_SOFT") to listOf("en-us-x-iol-local", "en-us-x-tpf-local", "en-us-journey-f", "en-gb-x-rjs-local"),
             Pair("en", "CRISP_CONFIDENT") to listOf("en-us-x-iol-local", "en-us-x-tpf-local", "en-us-studio-f", "en-us-journey-f"),
             Pair("en", "LIVELY_PLAYFUL") to listOf("en-us-x-iol-local", "en-us-x-tpf-local", "en-us-neural2-f"),
             Pair("en", "SWEET_COMPANION") to listOf("en-us-x-iol-local", "en-us-x-tpf-local", "en-us-wavenet-f"),
 
-            // Hindi personas - prioritizing hi-in-x-hia-local (softest realistic offline female voice) and hi-in-neural2-a
+            // Hindi personas - prioritizing hi-in-x-cfc-network and hi-in-x-hia-local
+            Pair("hi", "ALYA_EXPRESSIVE_WARM") to listOf("hi-in-x-cfc-network", "hi-in-x-hia-local", "hi-in-neural2-a", "hi-in-wavenet-a", "hi-in-x-hie-local"),
             Pair("hi", "KORE") to listOf("hi-in-x-hia-local", "hi-in-neural2-a", "hi-in-wavenet-a", "hi-in-x-hie-local"),
             Pair("hi", "GENTLE_SOFT") to listOf("hi-in-x-hia-local", "hi-in-neural2-a", "hi-in-wavenet-a"),
             Pair("hi", "CRISP_CONFIDENT") to listOf("hi-in-x-hia-local", "hi-in-neural2-a", "hi-in-wavenet-a"),
             Pair("hi", "LIVELY_PLAYFUL") to listOf("hi-in-x-hia-local", "hi-in-neural2-a", "hi-in-wavenet-a"),
             Pair("hi", "SWEET_COMPANION") to listOf("hi-in-x-hia-local", "hi-in-neural2-a", "hi-in-wavenet-a"),
 
-            // Bengali personas - prioritizing bn-in-x-bnf-local (softest realistic female voice) and wavenet-a
+            // Bengali personas
+            Pair("bn", "ALYA_EXPRESSIVE_WARM") to listOf("bn-in-x-bnf-local", "bn-in-wavenet-a", "bn-in-x-bnd-local"),
             Pair("bn", "KORE") to listOf("bn-in-x-bnf-local", "bn-in-wavenet-a", "bn-in-x-bnd-local"),
             Pair("bn", "GENTLE_SOFT") to listOf("bn-in-x-bnf-local", "bn-in-wavenet-a"),
             Pair("bn", "CRISP_CONFIDENT") to listOf("bn-in-x-bnf-local", "bn-in-wavenet-a"),
@@ -142,6 +145,7 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
             Pair("bn", "SWEET_COMPANION") to listOf("bn-in-x-bnf-local", "bn-in-wavenet-a"),
 
             // Japanese personas
+            Pair("ja", "ALYA_EXPRESSIVE_WARM") to listOf("ja-jp-x-jtd-local", "ja-jp-neural2-b", "ja-jp-wavenet-b"),
             Pair("ja", "KORE") to listOf("ja-jp-x-jtd-local", "ja-jp-neural2-b", "ja-jp-wavenet-b"),
             Pair("ja", "GENTLE_SOFT") to listOf("ja-jp-x-jtd-local", "ja-jp-wavenet-b"),
             Pair("ja", "CRISP_CONFIDENT") to listOf("ja-jp-x-jtd-local", "ja-jp-neural2-b"),
@@ -667,12 +671,13 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
 
         // Realistic human voice calibration (Pitch, Speed, Inflection, Warmth) tailored per persona
         val (personaPitchOffset, personaRateMultiplier) = when (persona.uppercase()) {
+            "ALYA_EXPRESSIVE_WARM", "EXPRESSIVE_WARM" -> Pair(0.02f, 0.98f)
             "KORE", "ALYA_KORE", "NATURAL_WARM", "WARM_NATURAL", "DEFAULT" -> Pair(0.00f, 1.00f)
             "GENTLE_SOFT", "SOFT_MELODIC", "ALYA_WARM_COMPANION", "WARM_COMPANION" -> Pair(-0.02f, 0.94f)
             "CRISP_CONFIDENT", "EXECUTIVE", "ALYA_EXECUTIVE_CRISP", "CALM_EXECUTIVE" -> Pair(-0.04f, 1.04f)
             "LIVELY_PLAYFUL", "ENERGETIC", "ENERGETIC_COMPANION" -> Pair(0.06f, 1.06f)
             "SWEET_COMPANION", "ALYA_ANIME_RUSSIAN", "ANIME_SWEET" -> Pair(0.04f, 0.98f)
-            else -> Pair(0.00f, 1.00f)
+            else -> Pair(0.02f, 0.98f)
         }
 
         val finalPitch = (speechPitch + personaPitchOffset).coerceIn(0.70f, 1.50f)
