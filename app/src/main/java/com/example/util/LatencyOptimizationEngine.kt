@@ -50,8 +50,8 @@ object LatencyOptimizationEngine {
             "Microphone_Capture" to "Active (20ms frames)",
             "Audio_Preprocessing" to "AEC/AGC/NS Enabled",
             "Jitter_Buffer" to "Active (60ms depth)",
-            "ASR_Engine" to "Gemini Live Streaming",
-            "TTS_Engine" to "Neural Expressive (Kore)",
+            "ASR_Engine" to "Open-Source Full-Duplex Streaming",
+            "TTS_Engine" to "Neural Expressive (On-Device / Piper)",
             "Latency_Target" to "${TARGET_LATENCY_MS}ms"
         )
     }

@@ -317,6 +317,16 @@ fun MainChatScreen(
                         )
                     }
                     IconButton(
+                        onClick = { activeBottomSheet = AssistantScreen.AI_STUDIO_LAB },
+                        modifier = Modifier.testTag("open_ai_lab_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = "AI Studio & JARVIS Lab",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
                         onClick = { activeBottomSheet = AssistantScreen.MEMORY },
                         modifier = Modifier.testTag("open_memory_button")
                     ) {
@@ -921,9 +931,16 @@ fun MainChatScreen(
                         onOpenPermissionsCapabilities = { activeBottomSheet = AssistantScreen.PERMISSIONS_CAPABILITIES },
                         onOpenWakeUpActivation = { viewModel.openWakeUpActivationDialog() },
                         onOpenCallTranscripts = { activeBottomSheet = AssistantScreen.CALL_TRANSCRIPTS },
+                        onOpenAiStudioLab = { activeBottomSheet = AssistantScreen.AI_STUDIO_LAB },
                         onCheckForUpdates = { viewModel.checkForUpdatesManual() },
                         onTestVoice = { sampleText -> viewModel.speakResponse(sampleText) },
                         onClose = { activeBottomSheet = null }
+                    )
+                }
+                AssistantScreen.AI_STUDIO_LAB -> {
+                    AiStudioLabScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { activeBottomSheet = null }
                     )
                 }
                 AssistantScreen.PERMISSIONS_CAPABILITIES -> {

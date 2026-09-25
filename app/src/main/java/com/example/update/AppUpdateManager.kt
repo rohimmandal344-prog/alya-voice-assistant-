@@ -263,7 +263,7 @@ class AppUpdateManager(private val context: Context) {
             versionCode = targetCode,
             versionName = targetName,
             apkUrl = "https://github.com/alya-assistant/alya/releases/download/v$targetName/alya-assistant-v$targetName.apk",
-            releaseNotes = "• Alya Assistant v$targetName Release Highlights:\n• Fixed Live Conversation: Gemini Multimodal Live API stability improvements with v1beta endpoint.\n• Warm & Soft Female Voice: Optimized audio persona (Kore) with natural human-like warm timbre.\n• Enhanced Barge-in: Smoother interruption handling during continuous live dialogue.\n• UI Polish: Latest branding and versioning synchronization.",
+            releaseNotes = "• Alya Assistant v$targetName Release Highlights:\n• 100% Free & Open-Source AI Brain: Native support for self-hosted Llama 3.2, Qwen 2.5, Mistral, and Rotational Session Hosting.\n• Warm & Soft Voice Engine: Optimized audio persona with natural human-like warm timbre.\n• Enhanced Barge-in: Smoother interruption handling during continuous live dialogue.\n• UI Polish: Latest branding and versioning synchronization.",
             isUpdateAvailable = isAvailable,
             currentVersionCode = currentCode,
             currentVersionName = currentName,

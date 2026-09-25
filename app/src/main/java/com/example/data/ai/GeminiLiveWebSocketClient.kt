@@ -152,16 +152,11 @@ class GeminiLiveWebSocketClient {
         modelName: String = LIVE_MODEL,
         tools: JSONArray? = null
     ) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (_: Exception) {
-            ""
-        }
+        val apiKey = ""
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            Log.e(TAG, "Cannot connect to Gemini Live: API key missing in BuildConfig")
-            _sessionState.value = GeminiLiveSessionState.Error("Gemini API Key missing")
-            onErrorOccurred?.invoke("Gemini API Key missing")
+            Log.i(TAG, "Open-source live streaming provider active.")
+            _sessionState.value = GeminiLiveSessionState.Disconnected
             return
         }
 

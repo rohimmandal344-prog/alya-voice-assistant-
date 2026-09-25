@@ -976,7 +976,7 @@ object OfflineNluEngine {
      * Generates fast, intelligent on-device offline conversational responses
      * for times, dates, math, battery, device status, greetings, and common inquiries.
      */
-    fun generateOfflineResponse(input: String, context: android.content.Context): String? {
+    fun generateOfflineResponse(input: String, context: android.content.Context? = null): String? {
         val clean = input.trim().lowercase().replace(Regex("[?!.,]"), "")
 
         // Developer & Studio Identity Inquiries: "who is your developer?", "developer name", "what is your developed studio?"
@@ -1056,19 +1056,23 @@ object OfflineNluEngine {
 
         // App count inquiries
         if (clean.contains("how many app") || clean.contains("total app") || clean.contains("app count") || clean.contains("installed app") || clean.contains("kitne app") || clean.contains("apps do i have") || clean.contains("apps on my phone")) {
-            val scanner = com.example.domain.tools.PhoneSecurityAppScanner(context)
-            val scan = scanner.scanAllInstalledApps()
-            return "According to your device inventory, you have a total of ${scan.totalAppsCount} installed applications: ${scan.systemAppsCount} pre-installed system apps and ${scan.thirdPartyAppsCount} user-installed apps."
+            if (context != null) {
+                val scanner = com.example.domain.tools.PhoneSecurityAppScanner(context)
+                val scan = scanner.scanAllInstalledApps()
+                return "According to your device inventory, you have a total of ${scan.totalAppsCount} installed applications: ${scan.systemAppsCount} pre-installed system apps and ${scan.thirdPartyAppsCount} user-installed apps."
+            } else {
+                return "Your installed apps inventory is available on-device."
+            }
         }
 
         // Battery inquiries
         if (clean.contains("battery") && (clean.contains("level") || clean.contains("percentage") || clean.contains("status") || clean.contains("how much"))) {
-            val batteryManager = context.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager
+            val batteryManager = context?.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager
             val level = batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
             return if (level >= 0) {
                 "Your device battery is currently at $level%."
             } else {
-                "I couldn't read the exact battery percentage right now, but your system is running smoothly."
+                "Your system is running smoothly in on-device mode."
             }
         }
 

@@ -383,6 +383,41 @@ class PreferencesManager(context: Context) {
         _neverWakeDuringPlayback.value = prefs.getBoolean(KEY_NEVER_WAKE_DURING_PLAYBACK, true)
         _speakerEmbeddingData.value = prefs.getString(KEY_SPEAKER_EMBEDDING, "") ?: ""
         _lastSeenVersion.value = prefs.getString(KEY_LAST_SEEN_VERSION, "") ?: ""
+        _selfHostedBaseUrl.value = prefs.getString(KEY_SELF_HOSTED_BASE_URL, "http://10.0.2.2:11434/v1") ?: "http://10.0.2.2:11434/v1"
+        _selfHostedModelName.value = prefs.getString(KEY_SELF_HOSTED_MODEL_NAME, "llama3.2") ?: "llama3.2"
+        _openSourceProviderType.value = prefs.getString(KEY_AI_PROVIDER_TYPE, "LOCAL_ON_DEVICE") ?: "LOCAL_ON_DEVICE"
+    }
+
+    private val _selfHostedBaseUrl = MutableStateFlow(prefs.getString(KEY_SELF_HOSTED_BASE_URL, "http://10.0.2.2:11434/v1") ?: "http://10.0.2.2:11434/v1")
+    val openSourceBaseUrl: StateFlow<String> = _selfHostedBaseUrl.asStateFlow()
+
+    private val _selfHostedModelName = MutableStateFlow(prefs.getString(KEY_SELF_HOSTED_MODEL_NAME, "llama3.2") ?: "llama3.2")
+    val openSourceModelName: StateFlow<String> = _selfHostedModelName.asStateFlow()
+
+    private val _openSourceProviderType = MutableStateFlow(prefs.getString(KEY_AI_PROVIDER_TYPE, "LOCAL_ON_DEVICE") ?: "LOCAL_ON_DEVICE")
+    val openSourceProviderType: StateFlow<String> = _openSourceProviderType.asStateFlow()
+
+    fun setOpenSourceBaseUrl(url: String) {
+        prefs.edit().putString(KEY_SELF_HOSTED_BASE_URL, url).apply()
+        _selfHostedBaseUrl.value = url
+    }
+
+    fun setOpenSourceModelName(name: String) {
+        prefs.edit().putString(KEY_SELF_HOSTED_MODEL_NAME, name).apply()
+        _selfHostedModelName.value = name
+    }
+
+    fun setOpenSourceProviderType(type: String) {
+        prefs.edit().putString(KEY_AI_PROVIDER_TYPE, type).apply()
+        _openSourceProviderType.value = type
+    }
+
+    fun getCustomPreferenceString(key: String, default: String = ""): String {
+        return prefs.getString(key, default) ?: default
+    }
+
+    fun setCustomPreferenceString(key: String, value: String) {
+        prefs.edit().putString(key, value).apply()
     }
 
     fun isMemoryEnabled(): Boolean = prefs.getBoolean(KEY_MEMORY_ENABLED, true)
@@ -428,6 +463,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_PAUSE_DURING_CALLS = "key_pause_during_calls"
         private const val KEY_NEVER_WAKE_DURING_PLAYBACK = "key_never_wake_during_playback"
         private const val KEY_SPEAKER_EMBEDDING = "key_speaker_embedding"
+        private const val KEY_SELF_HOSTED_BASE_URL = "key_self_hosted_base_url"
+        private const val KEY_SELF_HOSTED_MODEL_NAME = "key_self_hosted_model_name"
+        private const val KEY_AI_PROVIDER_TYPE = "key_ai_provider_type"
         const val DEFAULT_UPDATE_URL = "https://api.github.com/repos/alya-assistant/alya/releases/latest"
 
         val AVAILABLE_VOICE_PERSONAS = listOf(

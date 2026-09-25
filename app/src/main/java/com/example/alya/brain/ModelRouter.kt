@@ -15,7 +15,7 @@ enum class ModelRoutePriority {
  * ModelRouter
  *
  * Directs conversational & tool prompts to the best available provider
- * (Local ONNX/Gemma -> Self-Hosted Ollama/vLLM -> Cloud Gemini/External)
+ * (Local Vosk/NLU -> Self-Hosted Ollama/vLLM -> Rotational Multi-Instance Endpoints)
  * based on network availability and user configuration.
  */
 class ModelRouter(

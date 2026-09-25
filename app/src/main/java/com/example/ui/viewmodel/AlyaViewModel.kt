@@ -56,7 +56,8 @@ enum class AssistantScreen {
     PERMISSIONS_CAPABILITIES,
     DIAGNOSTICS,
     CALL_TRANSCRIPTS,
-    CALL_HISTORY
+    CALL_HISTORY,
+    AI_STUDIO_LAB
 }
 
 class AlyaViewModel(application: Application) : AndroidViewModel(application) {

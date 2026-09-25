@@ -129,9 +129,9 @@ class GeminiApiClient {
         preferredModel: String? = null,
         onChunk: (String) -> Unit
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Exception) { "" }
+        val apiKey = ""
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext Result.failure(IllegalStateException("API key not configured."))
+            return@withContext Result.failure(IllegalStateException("Open-source provider active. Legacy cloud API key not configured."))
         }
 
         val request = buildRequest(messages, systemInstruction, temperature, maxTokens)
@@ -227,15 +227,11 @@ class GeminiApiClient {
         maxTokens: Int = 512,
         preferredModel: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Exception) {
-            ""
-        }
+        val apiKey = ""
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             return@withContext Result.failure(
-                IllegalStateException("Gemini API key is not configured. Please provide an API key in the AI Studio Secrets panel.")
+                IllegalStateException("Open-source provider active. Legacy cloud API key not configured.")
             )
         }
 

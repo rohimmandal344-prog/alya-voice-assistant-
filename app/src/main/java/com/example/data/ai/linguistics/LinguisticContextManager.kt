@@ -38,7 +38,7 @@ data class LinguisticProfile(
  * 
  * Identifies the user's dialect and language (Hindi, Bengali, Japanese, Russian, Spanish,
  * French, German, Arabic, Korean, Chinese, Hinglish, Banglish, etc.) and configures
- * the Gemini model prompt dynamically to accurately interpret colloquial phrasing
+ * the model prompt dynamically to accurately interpret colloquial phrasing
  * and respond fluently in the EXACT user language.
  */
 class LinguisticContextManager {

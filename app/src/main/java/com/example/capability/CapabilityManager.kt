@@ -724,6 +724,10 @@ class CapabilityManager(private val context: Context) {
 
     val storagePermissionHelper = StoragePermissionHelper(context)
 
+    fun getCapabilityStatus(id: String): CapabilityStatus {
+        return _capabilities.value.firstOrNull { it.id.equals(id, ignoreCase = true) }?.status ?: CapabilityStatus.NOT_CONFIGURED
+    }
+
     companion object {
         private const val TAG = "CapabilityManager"
 

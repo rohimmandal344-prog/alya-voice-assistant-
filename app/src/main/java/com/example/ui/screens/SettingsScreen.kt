@@ -99,6 +99,7 @@ fun SettingsScreen(
     onOpenPermissionsCapabilities: (() -> Unit)? = null,
     onOpenWakeUpActivation: (() -> Unit)? = null,
     onOpenCallTranscripts: (() -> Unit)? = null,
+    onOpenAiStudioLab: (() -> Unit)? = null,
     onShowAccessibilityGuidance: (() -> Unit)? = null,
     onCheckForUpdates: (() -> Unit)? = null,
     onTestVoice: ((String) -> Unit)? = null
@@ -118,6 +119,12 @@ fun SettingsScreen(
     val responseStyle by preferencesManager.responseStyle.collectAsState()
     val updateCheckUrl by preferencesManager.updateCheckUrl.collectAsState()
     val fpsBoostEnabled by preferencesManager.fpsBoostEnabled.collectAsState()
+    val openSourceBaseUrl by preferencesManager.openSourceBaseUrl.collectAsState()
+    val openSourceModelName by preferencesManager.openSourceModelName.collectAsState()
+    val openSourceProviderType by preferencesManager.openSourceProviderType.collectAsState()
+
+    var testConnectionStatus by remember { mutableStateOf<String?>(null) }
+    var isTestingConnection by remember { mutableStateOf(false) }
 
     var backupStatus by remember { mutableStateOf(PreferencesAndHistoryBackupManager.getBackupFileInfo(context)) }
     var backupInProgress by remember { mutableStateOf(false) }
@@ -170,19 +177,226 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Section 1: AI Configuration
-        SettingsSectionHeader(icon = Icons.Default.SmartToy, title = "Alya Assistant Intelligence")
+        // Advanced AI Studio & JARVIS Lab Gateway Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { onOpenAiStudioLab?.invoke() },
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        imageVector = Icons.Default.Psychology,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "AI Studio & JARVIS Lab",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Autonomous Reasoning • Extreme Memory • AI Benchmarks",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Button(
+                    onClick = { onOpenAiStudioLab?.invoke() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Open Lab", fontSize = 12.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Section 1: Open-Source AI Brain & Inference Stack
+        SettingsSectionHeader(icon = Icons.Default.SmartToy, title = "Open-Source AI Brain & Inference Stack")
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 val currentVersionName = updateManagerInstance.getCurrentVersionName()
-                Text(
-                    text = "Alya Assistant Core v$currentVersionName (Optimized)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Alya 100% Free & Open-Source Engine",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Zero proprietary/cloud lock-in • Local & Self-Hosted",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                // Provider Type Selector
+                var providerExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = providerExpanded,
+                    onExpandedChange = { providerExpanded = !providerExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = when (openSourceProviderType) {
+                            "SELF_HOSTED" -> "Self-Hosted Server (Ollama / llama.cpp)"
+                            else -> "Local On-Device AI (100% Offline & Private)"
+                        },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("AI Reasoning Engine") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = providerExpanded,
+                        onDismissRequest = { providerExpanded = false }
+                    ) {
+                        listOf(
+                            "LOCAL_ON_DEVICE" to "Local On-Device AI (100% Offline & Private)",
+                            "SELF_HOSTED" to "Self-Hosted Server (Ollama / llama.cpp)"
+                        ).forEach { (key, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    preferencesManager.setOpenSourceProviderType(key)
+                                    val repo = (context.applicationContext as? com.example.AlyaApplication)?.repository
+                                    repo?.modelProviderRegistry?.selectProvider(key)
+                                    providerExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (openSourceProviderType == "SELF_HOSTED") {
+                    // Optional Endpoint URL Field
+                    var editedUrl by remember(openSourceBaseUrl) { mutableStateOf(openSourceBaseUrl) }
+                    OutlinedTextField(
+                        value = editedUrl,
+                        onValueChange = {
+                            editedUrl = it
+                            preferencesManager.setOpenSourceBaseUrl(it)
+                        },
+                        label = { Text("Optional Server Base URL (REST/SSE)") },
+                        placeholder = { Text("http://10.0.2.2:11434/v1") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Optional Model Name Field with Quick Presets
+                    var editedModel by remember(openSourceModelName) { mutableStateOf(openSourceModelName) }
+                    OutlinedTextField(
+                        value = editedModel,
+                        onValueChange = {
+                            editedModel = it
+                            preferencesManager.setOpenSourceModelName(it)
+                        },
+                        label = { Text("Model Name") },
+                        placeholder = { Text("llama3.2") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Model Quick Preset Chips
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("llama3.2", "qwen2.5:7b", "mistral", "gemma2", "deepseek-r1:8b").forEach { preset ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (editedModel == preset) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    editedModel = preset
+                                    preferencesManager.setOpenSourceModelName(preset)
+                                }
+                            ) {
+                                Text(
+                                    text = preset,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (editedModel == preset) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
+                    // Test Connection Button & Status
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                isTestingConnection = true
+                                testConnectionStatus = "Checking..."
+                                scope.launch {
+                                    try {
+                                        val repo = (context.applicationContext as? com.example.AlyaApplication)?.repository
+                                        val isOk = repo?.modelProviderRegistry?.selfHostedModelProvider?.healthCheck() ?: false
+                                        testConnectionStatus = if (isOk) "Online (HTTP 200 OK)" else "Server unreachable (Local fallback active)"
+                                    } catch (e: Exception) {
+                                        testConnectionStatus = "Error: ${e.message}"
+                                    } finally {
+                                        isTestingConnection = false
+                                    }
+                                }
+                            },
+                            enabled = !isTestingConnection
+                        ) {
+                            if (isTestingConnection) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text("Test Connection")
+                        }
+
+                        testConnectionStatus?.let { status ->
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (status.contains("Online")) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "Alya runs with 100% on-device AI. Zero network calls, zero external API keys, and complete privacy for all voice conversations and commands.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
 
                 // Response Style Dropdown
                 var styleExpanded by remember { mutableStateOf(false) }
@@ -194,7 +408,7 @@ fun SettingsScreen(
                         value = responseStyle,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Response Style") },
+                        label = { Text("Spoken Response Style") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = styleExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )

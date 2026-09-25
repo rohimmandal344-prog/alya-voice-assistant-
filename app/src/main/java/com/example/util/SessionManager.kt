@@ -49,7 +49,7 @@ class SessionManager(
     private val context: Context,
     private val speechManager: SpeechRecognitionManager,
     private val audioDeviceManager: AudioDeviceManager,
-    private val geminiClient: GeminiApiClient,
+    private val geminiClient: GeminiApiClient? = null,
     private val wakeWordManager: WakeWordManager
 ) {
     companion object {
@@ -288,7 +288,7 @@ class SessionManager(
         // 3. Purge Active Connections and Network Sockets
         try {
             Log.i(TAG, "Releasing and evicting network sockets...")
-            geminiClient.evictActiveConnections()
+            geminiClient?.evictActiveConnections()
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing network sockets", e)
         }

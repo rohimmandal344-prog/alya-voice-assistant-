@@ -43,14 +43,29 @@ class AlyaRepository(
 
     val geminiClient = GeminiApiClient()
     val toolExecutor = ToolExecutor(context)
+    val deviceControlManager = com.example.alya.provider.device.DeviceControlManager(context, toolExecutor)
     
-    // Alya Provider & Brain Architecture
-    val defaultModelProvider = com.example.alya.provider.impl.GeminiModelProvider(geminiClient)
+    // Open-Source Model Architecture (Local On-Device AI by default & Self-Hosted Option)
+    val modelProviderRegistry = com.example.alya.provider.ModelProviderRegistry(context, preferences, toolExecutor)
+    val defaultModelProvider = modelProviderRegistry.getActiveProvider()
+    val openSourceLiveClient = com.example.alya.voice.OpenSourceLiveWebSocketClient()
     val alyaBrain = com.example.alya.brain.AlyaBrain(defaultModelProvider, toolExecutor)
     val alyaApiGateway = com.example.alya.api.AlyaApiGateway(
         brain = alyaBrain,
         memoryDao = memoryDao,
         capabilityManager = com.example.capability.CapabilityManager.getInstance(context)
+    )
+
+    // Advanced Reasoning, Extreme Long-Term Memory & JARVIS Automation Stack
+    val extremeMemoryEngine = com.example.alya.memory.ExtremeMemoryEngine(context, memoryDao)
+    val jarvisTelemetryManager = com.example.alya.agent.JarvisTelemetryManager(context, memoryDao, scheduledTaskDao)
+    val jarvisMacroEngine = com.example.alya.agent.JarvisMacroEngine(context, toolExecutor)
+    val aiBenchmarkEngine = com.example.alya.agent.AiBenchmarkEngine(context, extremeMemoryEngine, toolExecutor)
+    val agentOrchestrator = com.example.alya.agent.AgentOrchestrator(
+        modelProvider = defaultModelProvider,
+        toolExecutor = toolExecutor,
+        memoryEngine = extremeMemoryEngine,
+        telemetryManager = jarvisTelemetryManager
     )
 
     val updateManager = AppUpdateManager(context)
@@ -459,15 +474,27 @@ class AlyaRepository(
             return@withContext fallbackResponse
         }
 
-        val geminiResult = geminiClient.generateResponse(
-            messages = apiHistory,
-            systemInstruction = systemPrompt,
-            temperature = if (isVoiceMode) 0.65f else 0.7f,
-            maxTokens = maxTokens
+        // Generate response using Open-Source Model Provider (Local On-Device AI / Self-Hosted)
+        val providerHistory = apiHistory.map { (role, content) ->
+            com.example.alya.provider.AlyaChatMessage(
+                role = if (role == "user") com.example.alya.provider.MessageRole.USER else com.example.alya.provider.MessageRole.ASSISTANT,
+                content = content
+            )
+        }
+
+        val activeModel = modelProviderRegistry.getActiveProvider()
+        val genResult = activeModel.generate(
+            prompt = userText,
+            history = providerHistory,
+            options = com.example.alya.provider.GenerationOptions(
+                systemInstruction = systemPrompt,
+                temperature = if (isVoiceMode) 0.65f else 0.7f,
+                maxTokens = maxTokens
+            )
         )
 
-        return@withContext if (geminiResult.isSuccess) {
-            val rawResponse = geminiResult.getOrNull() ?: "I'm here to help."
+        return@withContext if (genResult is com.example.alya.provider.GenerationResult.Success) {
+            val rawResponse = genResult.text.ifBlank { "I'm here to help." }
 
             // Check if response contains an action tag, fenced json, or raw inline json command
             val actionTagMatch = Regex("```action\\s*([\\s\\S]*?)\\s*```").find(rawResponse)
@@ -518,24 +545,8 @@ class AlyaRepository(
                 assistantMessage
             }
         } else {
-            val exception = geminiResult.exceptionOrNull()
             val offlineFallback = OfflineNluEngine.generateOfflineResponse(userText, context)
-            var fallbackContent = when {
-                offlineFallback != null -> offlineFallback
-                exception is GeminiRateLimitException -> {
-                    "I'm operating in fast local mode for a moment while the cloud service cools down. All device commands, settings, alarms, and offline tools are active."
-                }
-                else -> {
-                    val errorMsg = exception?.message ?: ""
-                    if (errorMsg.contains("API key", ignoreCase = true)) {
-                        "Gemini API key is not configured. Please add your key in the AI Studio Secrets panel. Meanwhile, all local device controls and offline tools remain fully functional!"
-                    } else if (isVoiceMode) {
-                        "I'm listening! Cloud service had a brief moment of traffic, but our live call is connected and ready."
-                    } else {
-                        "I had a brief connection delay with the cloud service. Local device commands and offline actions are still fully operational."
-                    }
-                }
-            }
+            var fallbackContent = offlineFallback ?: "I'm right here with you in offline mode. All device controls, alarms, settings, and local tools are ready."
             
             // Graceful fallback to local Room database cached data if it was a connection delay
             if (offlineFallback == null && fallbackContent.contains("connection delay")) {
